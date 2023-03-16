@@ -10,6 +10,17 @@ This is a forked repository from following paper:
 
 # Changes & Extensions
 
+## Changes
+
 This repository applies novel methods to forecast the original county level load data. Specifically:
 
-> * Box-Cox Transform to rectify the distrubtion of the data
+> Box-Cox Transform to rectify the distrubtion of the data
+> Cyclic and relative datetime encodings 
+> Deep Learning forecasting method, such as the Temporal Fusion Transformer
+
+## Extensions
+
+Furthermore new data has been introduced: TBC
+
+
+The framework used in this repository is the darts forecasting library.
