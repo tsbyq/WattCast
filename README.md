@@ -1,4 +1,4 @@
-# Electricity-Load-Forecasting-From-County-to-Household
+# WattCast: Electricity-Load-Forecasting-From-County-to-Household
 
 This is a forked repository from following paper:
 
