@@ -1,4 +1,4 @@
-# City-Scale Electricity Use Prediction
+# City-Scale Electricity Use Prediction v2
 
 This is a forked repository from following paper:
 
