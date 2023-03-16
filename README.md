@@ -1,4 +1,4 @@
-# City-Scale Electricity Use Prediction v2
+# Electricity-Load-Forecasting-From-County-to-Household
 
 This is a forked repository from following paper:
 
@@ -8,9 +8,9 @@ This is a forked repository from following paper:
 [[slides]](docs/slides.pdf)[[paper]](https://dl.acm.org/doi/10.1145/3408308.3427980)
 -->
 
-# Changes & Extensions
+## Changes & Extensions
 
-## Changes
+### Changes
 
 This repository applies novel methods to forecast the original county level load data. Specifically:
 
@@ -18,7 +18,7 @@ This repository applies novel methods to forecast the original county level load
 > * Cyclic and relative datetime encodings 
 > * Deep Learning forecasting method, such as the Temporal Fusion Transformer
 
-## Extensions
+### Extensions
 
 Furthermore new data has been introduced: TBC
 
