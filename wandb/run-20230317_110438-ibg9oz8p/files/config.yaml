@@ -1,0 +1,192 @@
+wandb_version: 1
+
+_wandb:
+  desc: null
+  value:
+    cli_version: 0.13.11
+    framework: lightgbm
+    is_jupyter_run: true
+    is_kaggle_kernel: false
+    m:
+    - 1: trainer/global_step
+      6:
+      - 3
+    - 1: train_loss
+      5: 1
+      6:
+      - 1
+    - 1: epoch
+      5: 1
+      6:
+      - 1
+    - 1: val_loss
+      5: 1
+      6:
+      - 1
+    python_version: 3.10.9
+    start_time: 1679076278.934873
+    t:
+      1:
+      - 1
+      - 5
+      - 6
+      - 7
+      - 8
+      - 9
+      - 41
+      - 53
+      - 55
+      2:
+      - 1
+      - 5
+      - 6
+      - 7
+      - 8
+      - 9
+      - 41
+      - 53
+      - 55
+      3:
+      - 7
+      - 13
+      - 23
+      4: 3.10.9
+      5: 0.13.11
+      8:
+      - 1
+      - 3
+      - 5
+add_relative_index:
+  desc: null
+  value: false
+dropout:
+  desc: null
+  value: 0.1
+feed_forward:
+  desc: null
+  value: GatedResidualNetwork
+full_attention:
+  desc: null
+  value: false
+hidden_continuous_size:
+  desc: null
+  value: 8
+hidden_size:
+  desc: null
+  value: 128
+input_chunk_length:
+  desc: null
+  value: 12
+likelihood:
+  desc: null
+  value: <darts.utils.likelihood_models.QuantileRegression object at 0x0000025C4DA0F850>
+lr_scheduler_cls:
+  desc: null
+  value: null
+lr_scheduler_kwargs:
+  desc: null
+  value: null
+lstm_layers:
+  desc: null
+  value: 1
+norm_type:
+  desc: null
+  value: LayerNorm
+num_attention_heads:
+  desc: null
+  value: 4
+num_static_components:
+  desc: null
+  value: 0
+optimizer_cls:
+  desc: null
+  value: Adam
+optimizer_kwargs:
+  desc: null
+  value: null
+output_chunk_length:
+  desc: null
+  value: 12
+output_dim:
+  desc: null
+  value:
+  - 1
+  - 17
+variables_meta/input/future_covariate:
+  desc: null
+  value:
+  - future_covariate_0
+  - future_covariate_1
+  - future_covariate_2
+  - future_covariate_3
+  - future_covariate_4
+  - future_covariate_5
+  - future_covariate_6
+variables_meta/input/future_target:
+  desc: null
+  value:
+  - target_0
+variables_meta/input/historic_future_covariate:
+  desc: null
+  value:
+  - future_covariate_0
+  - future_covariate_1
+  - future_covariate_2
+  - future_covariate_3
+  - future_covariate_4
+  - future_covariate_5
+  - future_covariate_6
+variables_meta/input/past_covariate:
+  desc: null
+  value:
+  - past_covariate_0
+variables_meta/input/past_target:
+  desc: null
+  value:
+  - target_0
+variables_meta/model_config/categorical_input:
+  desc: null
+  value: []
+variables_meta/model_config/reals_input:
+  desc: null
+  value:
+  - target_0
+  - past_covariate_0
+  - future_covariate_0
+  - future_covariate_1
+  - future_covariate_2
+  - future_covariate_3
+  - future_covariate_4
+  - future_covariate_5
+  - future_covariate_6
+variables_meta/model_config/static_input:
+  desc: null
+  value: []
+variables_meta/model_config/static_input_categorical:
+  desc: null
+  value: []
+variables_meta/model_config/static_input_numeric:
+  desc: null
+  value: []
+variables_meta/model_config/time_varying_decoder_input:
+  desc: null
+  value:
+  - future_covariate_0
+  - future_covariate_1
+  - future_covariate_2
+  - future_covariate_3
+  - future_covariate_4
+  - future_covariate_5
+  - future_covariate_6
+variables_meta/model_config/time_varying_encoder_input:
+  desc: null
+  value:
+  - target_0
+  - past_covariate_0
+  - future_covariate_0
+  - future_covariate_1
+  - future_covariate_2
+  - future_covariate_3
+  - future_covariate_4
+  - future_covariate_5
+  - future_covariate_6
