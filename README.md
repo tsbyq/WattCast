@@ -19,8 +19,12 @@ This repository applies novel methods to forecast the original county level load
 > * Box-Cox Transform to rectify the distrubtion of the data
 > * Cyclic and relative datetime encodings 
 > * Deep Learning forecasting method, such as the Temporal Fusion Transformer
+> * All deep learning models is publically available [wandb model training](https://wandb.ai/nikolaushouben/load_forecasting_lbl)
 
-Furthermore new data has been introduced: TBC
+Furthermore, new data has been introduced to discuss the differnces in forecasting approaches for electricity load on various spatial and temporal scales.
+
+> * Disaggregated Single-Family Home Electricity Load Data [zenedo data source](https://www.example.com)
+> * Aggregated Neighborhood-level 
 
 
 The framework used in this repository is the darts forecasting library.
