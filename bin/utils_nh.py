@@ -5,17 +5,16 @@ import pandas as pd
 import numpy as np
 
 
-
-def get_locations():
+def get_locations(DATA_PATH):
     'This function returns a list of locations for which we have data.'
-    locations = [location for location in os.listdir('data/power') if location.endswith('_load.csv')]
+    locations = [location for location in os.listdir(f'{DATA_PATH}/power') if location.endswith('_power.csv')]
     locations = [location.split('_')[0] for location in locations]
     return locations
 
 
-def load_ts_data(location:str):
-    'This function loads the time series data from the data folder.'
-    df = pd.read_csv(f'data/power/{location}_load.csv', index_col=0)
+def load_data(DATA_PATH, location:str, data_type:str):
+    'This function loads the data from the data folder given the location and the data type.'
+    df = pd.read_csv(f'{DATA_PATH}/{data_type}/{location}_{data_type}.csv', index_col=0)
     df.index = pd.to_datetime(df.index)
     df = df.sort_index()
     return df
@@ -43,12 +42,6 @@ def ts_list_concat(ts_list):
         ts = ts.append(ts_list[i])
     return ts
 
-def weather_ts_data(location:str):
-    'This function loads the time series data from the data folder.'
-    df = pd.read_csv(f'data/weather/{location}_weather.csv', index_col=0)
-    df.index = pd.to_datetime(df.index)
-    df = df.sort_index()
-    return df
 
 def make_index_same(ts1, ts2):
     '''This function makes the indices of two time series the same'''
@@ -110,8 +103,6 @@ def train_val_test_split(ts_list, train_end, val_end):
 
 def train_models(models:list, ts_train_list_piped, ts_train_weather_list_piped, idx):
     '''This function trains a list of models on the training data'''
-
-    #TODO Make this function more general for pytorch models
     for model in models:
         model.fit(ts_train_list_piped[idx], future_covariates=ts_train_weather_list_piped[idx])
     return models
