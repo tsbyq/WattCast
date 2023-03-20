@@ -107,8 +107,8 @@ def train_val_test_split(ts_list, train_end, val_end):
     return ts_train_list, ts_val_list, ts_test_list
 
 
-def train_models(models:list, ts_train_list_piped, ts_train_weather_list_piped, idx):
+def train_models(models:list, ts_train_list_piped, ts_train_weather_list_piped):
     '''This function trains a list of models on the training data'''
     for model in models:
-        model.fit(ts_train_list_piped[idx], future_covariates=ts_train_weather_list_piped[idx])
+        model.fit(ts_train_list_piped, future_covariates=ts_train_weather_list_piped)
     return models
