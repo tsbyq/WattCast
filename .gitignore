@@ -138,3 +138,9 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+# model artifacts and runs
+
+wandb/
+artifacts/
+models/
