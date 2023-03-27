@@ -1,5 +1,7 @@
 # utils.py
 
+'''This file contains utility functions that are used in the notebooks.'''
+
 import os
 import pandas as pd
 import numpy as np
@@ -112,3 +114,33 @@ def train_models(models:list, ts_train_list_piped, ts_train_weather_list_piped=N
     for model in models:
         model.fit(ts_train_list_piped, future_covariates=ts_train_weather_list_piped)
     return models
+
+def make_sklearn_models(list_sklearn_models, encoders, N_LAGS, N_AHEAD, LIKLIHOOD):
+    model_instances = []
+    for model in list_sklearn_models:
+        model = model(lags=N_LAGS,
+                      lags_future_covariates=[0],
+                      add_encoders=encoders, 
+                      output_chunk_length=N_AHEAD, 
+                      likelihood=LIKLIHOOD)
+        model_instances.append(model)
+    return model_instances
+
+
+def calc_error_scores(metrics, ts_predictions_inverse, trg_inversed):
+    metrics_scores = {}
+    for metric in metrics:
+        score = metric(ts_predictions_inverse, trg_inversed)
+        metrics_scores[metric.__name__] = score
+    return metrics_scores
+
+def get_error_metric_table(metrics, ts_predictions_per_model, trg_test_inversed):
+
+    error_metric_table = {}
+    for model_name, ts_predictions_inverse in ts_predictions_per_model.items():
+        ts_predictions_inverse, trg_inversed = make_index_same(ts_predictions_inverse, trg_test_inversed)
+        metrics_scores = calc_error_scores(metrics, ts_predictions_inverse, trg_inversed)
+        error_metric_table[model_name] = metrics_scores
+    
+    df_metrics  = pd.DataFrame(error_metric_table).T
+    return df_metrics
