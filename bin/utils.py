@@ -5,6 +5,55 @@
 import os
 import pandas as pd
 import numpy as np
+from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, Callback
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+
+class LRMonitor(Callback):
+    def __init__(self, monitor='val_loss', mode='min', factor=0.5, patience=3, min_lr=1e-6, verbose=False):
+        super().__init__()
+        self.monitor = monitor
+        self.mode = mode
+        self.factor = factor
+        self.patience = patience
+        self.min_lr = min_lr
+        self.verbose = verbose
+
+        self.scheduler = None
+        self.best_score = None
+        self.num_bad_epochs = None
+
+    def on_train_start(self, trainer, pl_module):
+        optimizer = trainer.optimizers[0]
+        self.scheduler = ReduceLROnPlateau(optimizer, mode=self.mode, factor=self.factor, patience=self.patience, min_lr=self.min_lr, verbose=self.verbose)
+
+    def on_validation_end(self, trainer, pl_module):
+        logs = trainer.callback_metrics
+        current_score = logs[self.monitor]
+        if self.best_score is None:
+            self.best_score = current_score
+            self.num_bad_epochs = 0
+        elif self._compare_score(current_score, self.best_score):
+            self.best_score = current_score
+            self.num_bad_epochs = 0
+        else:
+            self.num_bad_epochs += 1
+            if self.num_bad_epochs >= self.patience:
+                if self.verbose:
+                    print(f'Reducing learning rate. Best score: {self.best_score}, Current score: {current_score}')
+                self.scheduler.step(self.best_score)
+                self.best_score = None
+                self.num_bad_epochs = 0
+
+    def _compare_score(self, current_score, best_score):
+        if self.mode == 'min':
+            return current_score < best_score
+        else:
+            return current_score > best_score
+
+
+
+
+
 
 def load_from_model_artifact_checkpoint(model_class, base_path, checkpoint_path):
     model = model_class.load(base_path)
