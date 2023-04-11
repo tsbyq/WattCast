@@ -144,3 +144,4 @@ cython_debug/
 wandb/
 artifacts/
 models/
+data/raw_data
