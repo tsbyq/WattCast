@@ -53,8 +53,6 @@ class LRMonitor(Callback):
 
 
 
-
-
 def load_from_model_artifact_checkpoint(model_class, base_path, checkpoint_path):
     model = model_class.load(base_path)
     model.model = model._load_from_checkpoint(checkpoint_path)
@@ -193,3 +191,6 @@ def get_error_metric_table(metrics, ts_predictions_per_model, trg_test_inversed)
     
     df_metrics  = pd.DataFrame(error_metric_table).T
     return df_metrics
+
+
+
