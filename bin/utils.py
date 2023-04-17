@@ -9,51 +9,10 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, Callback
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 import datetime
 import holidays
-
-class LRMonitor(Callback):
-    def __init__(self, monitor='val_loss', mode='min', factor=0.5, patience=3, min_lr=1e-6, verbose=False):
-        super().__init__()
-        self.monitor = monitor
-        self.mode = mode
-        self.factor = factor
-        self.patience = patience
-        self.min_lr = min_lr
-        self.verbose = verbose
-
-        self.scheduler = None
-        self.best_score = None
-        self.num_bad_epochs = None
-
-    def on_train_start(self, trainer, pl_module):
-        optimizer = trainer.optimizers[0]
-        self.scheduler = ReduceLROnPlateau(optimizer, mode=self.mode, factor=self.factor, patience=self.patience, min_lr=self.min_lr, verbose=self.verbose)
-
-    def on_validation_end(self, trainer, pl_module):
-        logs = trainer.callback_metrics
-        current_score = logs[self.monitor]
-        if self.best_score is None:
-            self.best_score = current_score
-            self.num_bad_epochs = 0
-        elif self._compare_score(current_score, self.best_score):
-            self.best_score = current_score
-            self.num_bad_epochs = 0
-        else:
-            self.num_bad_epochs += 1
-            if self.num_bad_epochs >= self.patience:
-                if self.verbose:
-                    print(f'Reducing learning rate. Best score: {self.best_score}, Current score: {current_score}')
-                self.scheduler.step(self.best_score)
-                self.best_score = None
-                self.num_bad_epochs = 0
-
-    def _compare_score(self, current_score, best_score):
-        if self.mode == 'min':
-            return current_score < best_score
-        else:
-            return current_score > best_score
+from scipy.stats import boxcox
 
 
-
+### Pytorch and Darts Helper Functions  
 
 def load_from_model_artifact_checkpoint(model_class, base_path, checkpoint_path):
     model = model_class.load(base_path)
@@ -195,15 +154,36 @@ def get_error_metric_table(metrics, ts_predictions_per_model, trg_test_inversed)
     return df_metrics
 
 
+def calc_metrics(df_compare, metrics):
+    "calculates metrics for a dataframe with a ground truth column and predictions, ground truth column must be the first column"
+    metric_series_list = {}
+    for metric in metrics:
+        metric_name = metric.__name__
+        metric_result = df_compare.apply(lambda x: metric(x, df_compare.iloc[:,0]), axis=0)
+        if metric.__name__ == 'mean_squared_error':
+            metric_result = np.sqrt(metric_result)
+            metric_name = 'root_mean_squared_error'
+
+        metric_series_list[metric_name] = metric_result
+
+    df_metrics = pd.DataFrame(metric_series_list)
+    return df_metrics
 
 
 ### Feature Engineering
 
-# write a function to create datetime features from the datetime index of the input dataframe
+def calc_rolling_sum_of_load(df, n_days):
+    df['rolling_sum'] = df.sum(axis=1).rolling(n_days).sum().shift(1)
+    df = df.dropna()
+    return df
+
+
 def create_datetime_features(df):
-    df['day'] = df.index.day
-    df['day_of_week'] = df.index.dayofweek
-    df['month'] = df.index.month
+    df['day_of_week'] = df.index.dayofweek / 7
+    df['day_of_week_sin'] = np.sin(2 * np.pi * df['day_of_week']/7)
+    df['day_of_week_cos'] = np.cos(2 * np.pi * df['day_of_week']/7)
+    df.drop('day_of_week', axis=1, inplace=True)
+    df['month'] = df.index.month / 12
     df['month_sin'] = np.sin(2 * np.pi * df['month']/12)
     df['month_cos'] = np.cos(2 * np.pi * df['month']/12)
     df.drop('month', axis=1, inplace=True)
@@ -276,6 +256,15 @@ def get_holidays(years, shortcut):
     return df_holidays_dummies
 
 
+
+
+
+### Transformations & Cleaning
+
+def remove_duplicate_index(df):
+    df = df.loc[~df.index.duplicated(keep='first')]
+    return df
+
 def timeseries_dataframe_pivot(df):
     df['date'] = df.index.date
     df['time'] = df.index.time
@@ -314,3 +303,37 @@ def unpivot_timeseries_dataframe(df: pd.DataFrame, column_name: str = "Q"):
     df_unstack.index.name = "datetime"
 
     return df_unstack
+
+
+def boxcox_transform(dataframe, lam = None):
+    """
+    Perform a Box-Cox transform on a pandas dataframe timeseries.
+    
+    Args:
+    dataframe (pandas.DataFrame): Pandas dataframe containing the timeseries to transform.
+    lam (float): The lambda value to use for the Box-Cox transformation.
+    
+    Returns:
+    transformed_dataframe (pandas.DataFrame): Pandas dataframe containing the transformed timeseries.
+    """
+    transformed_dataframe = dataframe.copy()
+    for column in transformed_dataframe.columns:
+        transformed_dataframe[column], lam = boxcox(transformed_dataframe[column], lam)
+    return transformed_dataframe, lam
+
+
+def inverse_boxcox_transform(dataframe, lam):
+    """
+    Inverse the Box-Cox transform on a pandas dataframe timeseries.
+    
+    Args:
+    dataframe (pandas.DataFrame): Pandas dataframe containing the timeseries to transform.
+    lam (float): The lambda value used for the original Box-Cox transformation.
+    
+    Returns:
+    transformed_dataframe (pandas.DataFrame): Pandas dataframe containing the inverse-transformed timeseries.
+    """
+    transformed_dataframe = dataframe.copy()
+    for column in transformed_dataframe.columns:
+        transformed_dataframe[column] = np.exp(np.log(lam * transformed_dataframe[column] + 1) / lam)
+    return transformed_dataframe
