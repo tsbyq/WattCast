@@ -1,14 +1,5 @@
 # WattCast - *Electricity Load Forecasting From County to Household*
 
-This is a forked repository from following paper.
-
-> *Zhe Wang, Han Li, Tianzhen Hong, Mary Ann Piette. 2021. Predicting City-Scale Daily Electricity Consumption Using Data-Driven Models. Submitted to Advance in Applied Energy*
-
-<!--
-[[slides]](docs/slides.pdf)[[paper]](https://dl.acm.org/doi/10.1145/3408308.3427980)
--->
-
-## Extensions 👍
 
 Copyright (c) 2022 Nikolaus Houben
 
