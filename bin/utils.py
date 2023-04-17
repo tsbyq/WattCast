@@ -7,6 +7,8 @@ import pandas as pd
 import numpy as np
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, Callback
 from torch.optim.lr_scheduler import ReduceLROnPlateau
+import datetime
+import holidays
 
 class LRMonitor(Callback):
     def __init__(self, monitor='val_loss', mode='min', factor=0.5, patience=3, min_lr=1e-6, verbose=False):
@@ -194,3 +196,121 @@ def get_error_metric_table(metrics, ts_predictions_per_model, trg_test_inversed)
 
 
 
+
+### Feature Engineering
+
+# write a function to create datetime features from the datetime index of the input dataframe
+def create_datetime_features(df):
+    df['day'] = df.index.day
+    df['day_of_week'] = df.index.dayofweek
+    df['month'] = df.index.month
+    df['month_sin'] = np.sin(2 * np.pi * df['month']/12)
+    df['month_cos'] = np.cos(2 * np.pi * df['month']/12)
+    df.drop('month', axis=1, inplace=True)
+    df['is_weekend'] = df.index.dayofweek.isin([5,6]).astype(int)
+    return df
+
+def create_holiday_features(df, df_holidays, df_holiday_periods=None):
+
+    df_1 = days_until_next_holiday_encoder(df, df_holidays)
+
+    df_2 = days_since_last_holiday_encoder(df, df_holidays)
+
+    df_3 = pd.concat([df_1, df_2], axis=1)
+
+    if df_holiday_periods is not None:
+        df_3 = pd.concat([df_3, df_holiday_periods], axis=1)
+
+    df_3 = df_3.loc[~df_3.index.duplicated(keep='first')]
+
+    df_3 = df_3.reindex(df.index, fill_value=0)
+
+    return df_3
+
+
+def days_until_next_holiday_encoder(df, df_holidays):
+
+    df_concat = pd.concat([df, df_holidays], axis=1)
+    df_concat["days_until_next_holiday"] = 0
+    for ind in df_concat.index:
+        try:
+            next_holiday = df_concat["holiday_dummy"].loc[ind:].first_valid_index()
+            days_until_next_holiday = (next_holiday - ind).days
+            df_concat.loc[ind, "days_until_next_holiday"] = days_until_next_holiday
+        except:
+            pass
+
+    return df_concat[["days_until_next_holiday"]]
+
+
+def days_since_last_holiday_encoder(df, df_holidays):
+
+    df_concat = pd.concat([df, df_holidays], axis=1)
+    df_concat["days_since_last_holiday"] = 0
+    for ind in df_concat.index:
+        next_holiday = df_concat["holiday_dummy"].loc[:ind].last_valid_index()
+        days_since_last_holiday = (ind - next_holiday).days
+        df_concat.loc[ind, "days_since_last_holiday"] = days_since_last_holiday
+
+    return df_concat[["days_since_last_holiday"]]
+
+
+def get_year_list(df):
+    'Return the list of years in the historic data'
+    years = df.index.year.unique()
+    years = years.sort_values()
+    return list(years)
+
+
+def get_holidays(years, shortcut):
+
+    country = getattr(holidays, shortcut)
+    holidays_dict = country(years=years)
+    df_holidays = pd.DataFrame(holidays_dict.values(), index=holidays_dict.keys())
+    df_holidays[0] = 1
+    df_holidays_dummies = df_holidays
+    df_holidays_dummies.columns = ["holiday_dummy"]
+    df_holidays_dummies.index = pd.DatetimeIndex(df_holidays.index)
+    df_holidays_dummies = df_holidays_dummies.sort_index()
+
+    return df_holidays_dummies
+
+
+def timeseries_dataframe_pivot(df):
+    df['date'] = df.index.date
+    df['time'] = df.index.time
+
+    df_pivot = df.pivot(index='date', columns='time')
+
+    n_days, n_timesteps = df_pivot.shape
+
+    df_pivot.dropna(thresh = n_timesteps // 5, inplace=True)
+
+    df_pivot = df_pivot.fillna(method='ffill', axis = 0)
+
+    df_pivot = df_pivot.droplevel(0, axis=1)
+
+    df_pivot.columns.name = None
+
+    df_pivot.index = pd.DatetimeIndex(df_pivot.index)
+
+    return df_pivot
+
+
+def unpivot_timeseries_dataframe(df: pd.DataFrame, column_name: str = "Q"):
+
+    df_unstack = df.T.unstack().to_frame().reset_index()
+    df_unstack.columns = ["date", "time", "{}".format(column_name)]
+    df_unstack["date_str"] = df_unstack["date"].apply(
+        lambda t: datetime.datetime.strftime(t, format="%Y-%m-%d")
+    )
+    df_unstack["time_str"] = df_unstack["time"].apply(
+        lambda t: " {}:{}:{}".format(t.hour, t.minute, t.second)
+    )
+    df_unstack["datetime_str"] = df_unstack["date_str"] + df_unstack["time_str"]
+    df_unstack = df_unstack.set_index(
+        pd.to_datetime(df_unstack["datetime_str"], format="%Y-%m-%d %H:%M:%S")
+    )[[column_name]]
+    df_unstack.index.name = "datetime"
+
+    return df_unstack
