@@ -269,10 +269,11 @@ def remove_duplicate_index(df):
     return df
 
 def timeseries_dataframe_pivot(df):
-    df['date'] = df.index.date
-    df['time'] = df.index.time
+    df_ = df.copy()
+    df_['date'] = df_.index.date
+    df_['time'] = df_.index.time
 
-    df_pivot = df.pivot(index='date', columns='time')
+    df_pivot = df_.pivot(index='date', columns='time')
 
     n_days, n_timesteps = df_pivot.shape
 
