@@ -163,10 +163,13 @@ def calc_metrics(df_compare, metrics):
         if metric.__name__ == 'mean_squared_error':
             metric_result = np.sqrt(metric_result)
             metric_name = 'root_mean_squared_error'
+        elif metric.__name__ == 'r2_score':
+            metric_result = 1 - metric_result
+            metric_name = 'mean_absolute_percentage_error'
 
         metric_series_list[metric_name] = metric_result
 
-    df_metrics = pd.DataFrame(metric_series_list)
+    df_metrics = pd.DataFrame(metric_series_list).iloc[1:,:]
     return df_metrics
 
 
@@ -335,5 +338,8 @@ def inverse_boxcox_transform(dataframe, lam):
     """
     transformed_dataframe = dataframe.copy()
     for column in transformed_dataframe.columns:
-        transformed_dataframe[column] = np.exp(np.log(lam * transformed_dataframe[column] + 1) / lam)
+        if lam == 0:
+            transformed_dataframe[column] = np.exp(transformed_dataframe[column])
+        else:
+            transformed_dataframe[column] = np.exp(np.log(lam * transformed_dataframe[column] + 1) / lam)
     return transformed_dataframe
