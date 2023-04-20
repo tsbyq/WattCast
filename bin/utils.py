@@ -12,6 +12,7 @@ import holidays
 from scipy.stats import boxcox
 from scipy.signal import find_peaks_cwt
 from fastdtw import fastdtw
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, make_scorer
 
 
 ### Pytorch and Darts Helper Functions  
@@ -216,16 +217,14 @@ def timeseries_peak_feature_extractor(df):
             daily_second_peak_time.append(0)
     
     # Combine results into output DataFrame
-    output_df = pd.DataFrame({'Peak Count': daily_peak_count.values,
-                              'Max Peak Height': daily_peak_height,
-                              'Time of Max Peak': daily_peak_time,
-                              'Second Max Peak Height': daily_second_peak_height,
-                              'Time of Second Max Peak': daily_second_peak_time},
+    output_df = pd.DataFrame({'peak_count': daily_peak_count.values,
+                              'height_highest_peak': daily_peak_height,
+                              'time_highest_peak': daily_peak_time,
+                              'height_second_highest_peak': daily_second_peak_height,
+                              'time_second_highest_peak': daily_second_peak_time},
                              index=daily_peak_count.index)
     
-    df_out = pd.concat([df, output_df], axis=1)
-    
-    return df_out
+    return output_df
 
 
 
@@ -422,7 +421,8 @@ def inverse_boxcox_transform(dataframe, lam):
 def post_process_xgb_predictions(predictions, boxcox_bool, scaler=None, lam = None):
     'Post-process the predictions of the Multi-Output XGBoost model'
     predictions_reshaped = predictions.reshape(-1,1).flatten()
-    predictions_reshaped[predictions_reshaped < 0] = 0 # removing negative values
+    # set negative predictions to 5th percentile of the training data
+    predictions_reshaped[predictions_reshaped < 0] = np.quantile(predictions_reshaped, 0.05)   
     # reverse the scaling and boxcox transformation of the predictions
     if scaler is not None:
         predictions_reshaped = scaler.inverse_transform(predictions_reshaped.reshape(-1,1)).flatten()
@@ -436,3 +436,7 @@ def post_process_xgb_predictions(predictions, boxcox_bool, scaler=None, lam = No
 def dtw_metric(y_true, y_pred):
     distance, path = fastdtw(y_true, y_pred)
     return distance
+
+dtw_scorer = make_scorer(dtw_metric, greater_is_better=False)
+
+rmse_scorer = make_scorer(mean_squared_error, greater_is_better=False)
