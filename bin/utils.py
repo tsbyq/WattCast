@@ -10,6 +10,8 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 import datetime
 import holidays
 from scipy.stats import boxcox
+from scipy.signal import find_peaks_cwt
+from fastdtw import fastdtw
 
 
 ### Pytorch and Darts Helper Functions  
@@ -165,7 +167,6 @@ def calc_metrics(df_compare, metrics):
             metric_name = 'root_mean_squared_error'
         elif metric.__name__ == 'r2_score':
             metric_result = 1 - metric_result
-            metric_name = 'mean_absolute_percentage_error'
 
         metric_series_list[metric_name] = metric_result
 
@@ -174,6 +175,60 @@ def calc_metrics(df_compare, metrics):
 
 
 ### Feature Engineering
+
+
+def timeseries_peak_feature_extractor(df):
+    'Extracts peak count, maximum peak height, and time of maximum peak for each day in a pandas dataframe time series'
+    
+    # Find peaks
+    peak_idx = find_peaks_cwt(df.values.flatten(), widths=3, max_distances=[48], window_size=96)
+    
+    # Convert peak indices to datetime indices
+    peak_times = [df.index[i] for i in peak_idx]
+    
+    # Group peaks by day
+    peak_days = pd.Series(peak_times).dt.date
+    
+    # Count peaks for each day
+    daily_peak_count = peak_days.value_counts().sort_index()
+    
+    # Find maximum and second maximum peak height and time for each day
+    daily_peak_height = []
+    daily_peak_time = []
+    daily_second_peak_height = []
+    daily_second_peak_time = []
+    
+    for day in daily_peak_count.index:
+        day_peaks = [peak_idx[i] for i in range(len(peak_idx)) if peak_times[i].date() == day]
+        day_peak_vals = [df.values[i] for i in day_peaks]
+        
+        max_idx = np.argmax(day_peak_vals)
+        daily_peak_height.append(day_peak_vals[max_idx][0])
+        daily_peak_time.append((day_peaks[max_idx] % 96))
+        
+        if len(day_peak_vals) > 1:
+            day_peak_vals[max_idx] = -np.inf
+            second_max_idx = np.argmax(day_peak_vals)
+            daily_second_peak_height.append(day_peak_vals[second_max_idx][0])
+            daily_second_peak_time.append((day_peaks[second_max_idx] % 96))
+        else:
+            daily_second_peak_height.append(0)
+            daily_second_peak_time.append(0)
+    
+    # Combine results into output DataFrame
+    output_df = pd.DataFrame({'Peak Count': daily_peak_count.values,
+                              'Max Peak Height': daily_peak_height,
+                              'Time of Max Peak': daily_peak_time,
+                              'Second Max Peak Height': daily_second_peak_height,
+                              'Time of Second Max Peak': daily_second_peak_time},
+                             index=daily_peak_count.index)
+    
+    df_out = pd.concat([df, output_df], axis=1)
+    
+    return df_out
+
+
+
 
 def calc_rolling_sum_of_load(df, n_days):
     df['rolling_sum'] = df.sum(axis=1).rolling(n_days).sum().shift(1)
@@ -264,6 +319,24 @@ def get_holidays(years, shortcut):
 
 ### Transformations & Cleaning
 
+
+def remove_days(df_raw, p=0.05):
+    'Removes days with less than 5% of average total energy consumption of all days'
+    df = df_raw.copy()
+    days_to_remove = []
+    days = list(set(df.index.date))
+    threshold = df.groupby(df.index.date).sum().quantile(p).values[0]
+    for day in days:
+        if df.loc[df.index.date == day].sum().squeeze() < threshold:
+            days_to_remove.append(day)
+
+    mask = np.in1d(df.index.date, days_to_remove)
+
+    df = df[~mask].dropna()
+    
+    return df
+
+
 def remove_duplicate_index(df):
     df = df.loc[~df.index.duplicated(keep='first')]
     return df
@@ -344,3 +417,22 @@ def inverse_boxcox_transform(dataframe, lam):
         else:
             transformed_dataframe[column] = np.exp(np.log(lam * transformed_dataframe[column] + 1) / lam)
     return transformed_dataframe
+
+
+def post_process_xgb_predictions(predictions, boxcox_bool, scaler=None, lam = None):
+    'Post-process the predictions of the Multi-Output XGBoost model'
+    predictions_reshaped = predictions.reshape(-1,1).flatten()
+    predictions_reshaped[predictions_reshaped < 0] = 0 # removing negative values
+    # reverse the scaling and boxcox transformation of the predictions
+    if scaler is not None:
+        predictions_reshaped = scaler.inverse_transform(predictions_reshaped.reshape(-1,1)).flatten()
+    if boxcox_bool:
+        predictions_reshaped = inverse_boxcox_transform(pd.DataFrame(predictions_reshaped), lam).values.flatten()
+    return predictions_reshaped
+
+
+# model evaluation
+
+def dtw_metric(y_true, y_pred):
+    distance, path = fastdtw(y_true, y_pred)
+    return distance
