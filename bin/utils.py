@@ -179,7 +179,7 @@ def calc_metrics(df_compare, metrics):
 
 
 def timeseries_peak_feature_extractor(df):
-    'Extracts peak count, maximum peak height, and time of maximum peak for each day in a pandas dataframe time series'
+    'Extracts peak count, maximum peak height, and time of two largest peaks for each day in a pandas dataframe time series'
     
     # Find peaks
     peak_idx = find_peaks_cwt(df.values.flatten(), widths=3, max_distances=[48], window_size=96)
@@ -236,21 +236,21 @@ def calc_rolling_sum_of_load(df, n_days):
 
 
 def create_datetime_features(df):
-    df['day_of_week'] = df.index.dayofweek / 7
+    df['day_of_week'] = df.index.dayofweek
     df['day_of_week_sin'] = np.sin(2 * np.pi * df['day_of_week']/7)
     df['day_of_week_cos'] = np.cos(2 * np.pi * df['day_of_week']/7)
     df.drop('day_of_week', axis=1, inplace=True)
-    df['month'] = df.index.month / 12
+    df['month'] = df.index.month
     df['month_sin'] = np.sin(2 * np.pi * df['month']/12)
     df['month_cos'] = np.cos(2 * np.pi * df['month']/12)
+    # is weekend
+    df['is_weekend'] = df.index.dayofweek > 4
     df.drop('month', axis=1, inplace=True)
-    df['is_weekend'] = df.index.dayofweek.isin([5,6]).astype(int)
     return df
 
 def create_holiday_features(df, df_holidays, df_holiday_periods=None):
 
     df_1 = days_until_next_holiday_encoder(df, df_holidays)
-
     df_2 = days_since_last_holiday_encoder(df, df_holidays)
 
     df_3 = pd.concat([df_1, df_2], axis=1)
