@@ -462,7 +462,7 @@ def dtw_distance_matrix(df):
         for j in range(i, num_cols):
             ts1 = df.iloc[:, i].values.reshape(-1, 1)
             ts2 = df.iloc[:, j].values.reshape(-1, 1)
-            dtw_dist, _ = fastdtw(ts1, ts2)
+            dtw_dist = dtw(ts1, ts2)
             dtw_matrix.iloc[i, j] = dtw_dist
             dtw_matrix.iloc[j, i] = dtw_dist
 
@@ -473,8 +473,14 @@ def concat_and_scale(df_ap, similar_pair):
     """ This function takes in the dataframe with all the apartments and the pair of similar apartments"""
     df_ap_1 = df_ap[similar_pair[0]].to_frame("apartment_demand_W")
     df_ap_2 = df_ap[similar_pair[1]].to_frame("apartment_demand_W")
-    df_ap_2.index = df_ap_2.index +  pd.Timedelta(weeks=52) # shifting the second apartment by one year
-
+    shifted_idx = df_ap_2.index +  pd.Timedelta(weeks=52) # shifting the second apartment by one year
+    # flipping every other row to make the two profiles more similar
+    df_side_by_side = pd.concat([df_ap_1, df_ap_2], axis=1)
+    df_flipped = df_side_by_side.iloc[::2,::-1]
+    df_side_by_side.iloc[::2,:] = df_flipped.values
+    df_ap_1 = df_side_by_side.iloc[:,0].to_frame("apartment_demand_W")
+    df_ap_2 = df_side_by_side.iloc[:,1].to_frame("apartment_demand_W")
+    df_ap_2.index = shifted_idx
     # scaling both between 0 and 1
     scaler_1 = MinMaxScaler()
     scaler_2 = MinMaxScaler()
@@ -485,6 +491,7 @@ def concat_and_scale(df_ap, similar_pair):
     df_ap_to_concat_scaled = pd.concat([df_ap_1, df_ap_2], axis = 0)
     # using scaler 1 to scale the whole dataframe back to the original scale
     df_ap_to_concat = pd.DataFrame(scaler_1.inverse_transform(df_ap_to_concat_scaled), columns = df_ap_to_concat_scaled.columns, index = df_ap_to_concat_scaled.index)
+
     return df_ap_to_concat
 
 
