@@ -12,8 +12,9 @@ import holidays
 from scipy.stats import boxcox
 from scipy.signal import find_peaks_cwt
 from fastdtw import fastdtw
+from tslearn.metrics import dtw
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, make_scorer
-
+from sklearn.preprocessing import MinMaxScaler
 
 ### Pytorch and Darts Helper Functions  
 
@@ -328,16 +329,16 @@ def standardize_format(df, timestep, location, unit:str):
 # a function to do a train test split, the train should be a full year and the test should be a tuple of datasets, each one month long
 
 
-def save_train_val_test_datasets(df, train_start, train_end, val_start, val_end, test_start, test_end, spatial_scale):
+def save_train_val_test_datasets(df, train_start, train_end, val_start, val_end, test_start, test_end, spatial_scale, temporal_resolution):
 
     train = df.loc[train_start:train_end]
     val = df.loc[val_start:val_end]
     test = df.loc[test_start:test_end]
     key = train.columns[0].split('_')[1]
     # Save the dataframes
-    train.to_csv(f"data/cleaned_data/{spatial_scale}/power/{key}_train.csv")
-    val.to_csv(f"data/cleaned_data/{spatial_scale}/power/{key}_val.csv")
-    test.to_csv(f"data/cleaned_data/{spatial_scale}/power/{key}_test.csv")
+    train.to_csv(f"data/cleaned_data/{spatial_scale}/power/{temporal_resolution}min_{key}_train.csv")
+    val.to_csv(f"data/cleaned_data/{spatial_scale}/power/{temporal_resolution}min_{key}_val.csv")
+    test.to_csv(f"data/cleaned_data/{spatial_scale}/power/{temporal_resolution}min_{key}_test.csv")
 
 
 def remove_non_positive_values(df):
@@ -450,6 +451,43 @@ def inverse_boxcox_transform(dataframe, lam):
         else:
             transformed_dataframe[column] = np.exp(np.log(lam * transformed_dataframe[column] + 1) / lam)
     return transformed_dataframe
+
+
+def dtw_distance_matrix(df):
+    'Calculate the pairwise DTW distance matrix of a dataframe'
+    num_cols = df.shape[1]
+    dtw_matrix = pd.DataFrame(index=df.columns, columns=df.columns)
+
+    for i in range(num_cols):
+        for j in range(i, num_cols):
+            ts1 = df.iloc[:, i].values.reshape(-1, 1)
+            ts2 = df.iloc[:, j].values.reshape(-1, 1)
+            dtw_dist, _ = fastdtw(ts1, ts2)
+            dtw_matrix.iloc[i, j] = dtw_dist
+            dtw_matrix.iloc[j, i] = dtw_dist
+
+    return dtw_matrix
+
+
+def concat_and_scale(df_ap, similar_pair):
+    """ This function takes in the dataframe with all the apartments and the pair of similar apartments"""
+    df_ap_1 = df_ap[similar_pair[0]].to_frame("apartment_demand_W")
+    df_ap_2 = df_ap[similar_pair[1]].to_frame("apartment_demand_W")
+    df_ap_2.index = df_ap_2.index +  pd.Timedelta(weeks=52) # shifting the second apartment by one year
+
+    # scaling both between 0 and 1
+    scaler_1 = MinMaxScaler()
+    scaler_2 = MinMaxScaler()
+    # scaling the two dataframes
+    df_ap_1[df_ap_1.columns] = scaler_1.fit_transform(df_ap_1[df_ap_1.columns])
+    df_ap_2[df_ap_2.columns] = scaler_2.fit_transform(df_ap_2[df_ap_2.columns])
+    # appending the two dataframes
+    df_ap_to_concat_scaled = pd.concat([df_ap_1, df_ap_2], axis = 0)
+    # using scaler 1 to scale the whole dataframe back to the original scale
+    df_ap_to_concat = pd.DataFrame(scaler_1.inverse_transform(df_ap_to_concat_scaled), columns = df_ap_to_concat_scaled.columns, index = df_ap_to_concat_scaled.index)
+    return df_ap_to_concat
+
+
 
 
 def post_process_xgb_predictions(predictions, boxcox_bool, scaler=None, lam = None):
