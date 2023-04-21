@@ -314,9 +314,41 @@ def get_holidays(years, shortcut):
 
 
 
-
-
 ### Transformations & Cleaning
+
+
+def standardize_format(df, timestep, location, unit:str):
+    df = df.sort_index()
+    df = remove_duplicate_index(df)
+    df = df.resample(f'{timestep}T').mean()
+    df.index.name = 'datetime'
+    df.columns = [f'load_{location}_{unit}']
+    return df
+
+# a function to do a train test split, the train should be a full year and the test should be a tuple of datasets, each one month long
+
+
+def save_train_val_test_datasets(df, train_start, train_end, val_start, val_end, test_start, test_end, spatial_scale):
+
+    train = df.loc[train_start:train_end]
+    val = df.loc[val_start:val_end]
+    test = df.loc[test_start:test_end]
+    key = train.columns[0].split('_')[1]
+    # Save the dataframes
+    train.to_csv(f"data/cleaned_data/{spatial_scale}/power/{key}_train.csv")
+    val.to_csv(f"data/cleaned_data/{spatial_scale}/power/{key}_val.csv")
+    test.to_csv(f"data/cleaned_data/{spatial_scale}/power/{key}_test.csv")
+
+
+def remove_non_positive_values(df):
+    'Removes all non-positive values from a dataframe and interpolates the missing values'
+    df[df<=0] = np.nan
+    df = df.interpolate(method='linear', axis=0).ffill().bfill()
+    df.dropna(inplace=True)
+    return df
+
+
+
 
 
 def remove_days(df_raw, p=0.05):
@@ -332,6 +364,8 @@ def remove_days(df_raw, p=0.05):
     mask = np.in1d(df.index.date, days_to_remove)
 
     df = df[~mask].dropna()
+
+    print(f'Removed {len(days_to_remove)} days with less than {p*100}% of average total energy consumption of all days')
     
     return df
 
