@@ -11,9 +11,10 @@ import datetime
 import holidays
 from scipy.stats import boxcox
 from scipy.signal import find_peaks_cwt
+from scipy.spatial.distance import euclidean
 from fastdtw import fastdtw
 from tslearn.metrics import dtw
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, make_scorer
+from sklearn.metrics import mean_absolute_error, mean_squared_error, make_scorer
 from sklearn.preprocessing import MinMaxScaler
 
 ### Pytorch and Darts Helper Functions  
@@ -182,8 +183,11 @@ def calc_metrics(df_compare, metrics):
 def timeseries_peak_feature_extractor(df):
     'Extracts peak count, maximum peak height, and time of two largest peaks for each day in a pandas dataframe time series'
     
+    timesteplen = infer_frequency(df)
+    timesteps_per_day = 24*60//timesteplen
+    
     # Find peaks
-    peak_idx = find_peaks_cwt(df.values.flatten(), widths=3, max_distances=[48], window_size=96)
+    peak_idx = find_peaks_cwt(df.values.flatten(), widths=3, max_distances=[timesteps_per_day//2], window_size=timesteps_per_day)
     
     # Convert peak indices to datetime indices
     peak_times = [df.index[i] for i in peak_idx]
@@ -212,13 +216,14 @@ def timeseries_peak_feature_extractor(df):
             day_peak_vals[max_idx] = -np.inf
             second_max_idx = np.argmax(day_peak_vals)
             daily_second_peak_height.append(day_peak_vals[second_max_idx][0])
-            daily_second_peak_time.append((day_peaks[second_max_idx] % 96))
+            daily_second_peak_time.append((day_peaks[second_max_idx] % timesteps_per_day))
         else:
             daily_second_peak_height.append(0)
             daily_second_peak_time.append(0)
     
     # Combine results into output DataFrame
-    output_df = pd.DataFrame({'peak_count': daily_peak_count.values,
+    output_df = pd.DataFrame({
+                              'peak_count': daily_peak_count.values,
                               'height_highest_peak': daily_peak_height,
                               'time_highest_peak': daily_peak_time,
                               'height_second_highest_peak': daily_second_peak_height,
@@ -329,16 +334,12 @@ def standardize_format(df, timestep, location, unit:str):
 # a function to do a train test split, the train should be a full year and the test should be a tuple of datasets, each one month long
 
 
-def save_train_val_test_datasets(df, train_start, train_end, val_start, val_end, test_start, test_end, spatial_scale, temporal_resolution):
-
+def split_train_val_test_datasets(df, train_start, train_end, val_start, val_end, test_start, test_end):
     train = df.loc[train_start:train_end]
     val = df.loc[val_start:val_end]
     test = df.loc[test_start:test_end]
-    key = train.columns[0].split('_')[1]
     # Save the dataframes
-    train.to_csv(f"data/cleaned_data/{spatial_scale}/power/{temporal_resolution}min_{key}_train.csv")
-    val.to_csv(f"data/cleaned_data/{spatial_scale}/power/{temporal_resolution}min_{key}_val.csv")
-    test.to_csv(f"data/cleaned_data/{spatial_scale}/power/{temporal_resolution}min_{key}_test.csv")
+    return train, val, test
 
 
 def remove_non_positive_values(df):
@@ -512,9 +513,33 @@ def post_process_xgb_predictions(predictions, boxcox_bool, scaler=None, lam = No
 
 # model evaluation
 
-def dtw_metric(y_true, y_pred):
-    distance, path = fastdtw(y_true, y_pred)
-    return distance
+# Define custom evaluation function
+def dtw_error(preds, dtest):
+    labels = dtest.get_label()
+    samples, timesteps = preds.shape
+    labels = labels.reshape(samples, timesteps)
+    distance = 0
+    for i in range(preds.shape[0]):
+        pred, label = preds[i].reshape(-1,1) , labels[i].reshape(-1,1)
+        error, _ = fastdtw(pred, label, dist=euclidean)
+        distance += error
+    return 'dtw_error', distance / preds.shape[0]
+
+def peak_error(preds, dtest):
+    '''
+    Peak error is the absolute difference between the predicted peak and the true peak. 
+    This metric ensures that the hyperparameters of the model are chosen so the model behaves less conservative.
+    '''
+    labels = dtest.get_label()
+    samples, timesteps = preds.shape
+    labels = labels.reshape(samples, timesteps)
+    distance = 0
+    for i in range(preds.shape[0]):
+        pred, label = preds[i].reshape(-1,1) , labels[i].reshape(-1,1)
+        error = np.abs(pred.max() - label.max())
+        distance += error
+    return 'peak_error', distance / preds.shape[0]
+
 
 dtw_scorer = make_scorer(dtw_metric, greater_is_better=False)
 
