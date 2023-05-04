@@ -2,4 +2,3 @@ wandb/
 artifacts/
 models/
 data/raw_data
-data/cleaned_data
