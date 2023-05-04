@@ -541,6 +541,5 @@ def peak_error(preds, dtest):
     return 'peak_error', distance / preds.shape[0]
 
 
-dtw_scorer = make_scorer(dtw_metric, greater_is_better=False)
 
 rmse_scorer = make_scorer(mean_squared_error, greater_is_better=False)
