@@ -55,10 +55,10 @@ def infer_frequency(df):
         freq = df.index.to_series().diff().mode()[0]
     return freq
 
-def ts_list_concat(ts_list):
-    '''This function concatenates a list of time series into one time series'''
+def ts_list_concat(ts_list, stride):
+    '''This function concatenates a list of time series into one time series, depending on what the stride was in the eval pipeline'''
     ts = ts_list[0]
-    for i in range(1, len(ts_list)-1):
+    for i in range(1, len(ts_list)-1, stride):
         previous_end = ts.end_time()
         ts = ts[:-1].append(ts_list[i][previous_end:])
     return ts
