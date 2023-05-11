@@ -323,12 +323,12 @@ def get_holidays(years, shortcut):
 ### Transformations & Cleaning
 
 
-def standardize_format(df, timestep, location, unit:str):
+def standardize_format(df:pd.DataFrame, type: str, timestep:int, location:str, unit:str):
     df = df.sort_index()
     df = remove_duplicate_index(df)
     df = df.resample(f'{timestep}T').mean()
     df.index.name = 'datetime'
-    df.columns = [f'load_{location}_{unit}']
+    df.columns = [f'{type}_{location}_{unit}']
     return df
 
 # a function to do a train test split, the train should be a full year and the test should be a tuple of datasets, each one month long
