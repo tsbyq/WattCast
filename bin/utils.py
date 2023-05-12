@@ -25,21 +25,6 @@ def load_from_model_artifact_checkpoint(model_class, base_path, checkpoint_path)
     return model
 
 
-def get_locations(DATA_PATH):
-    'This function returns a list of locations for which we have data.'
-    locations = [location for location in os.listdir(f'{DATA_PATH}/power') if location.endswith('_power.csv')]
-    locations = [location.split('_')[0] for location in locations]
-    return locations
-
-
-def load_data(DATA_PATH, location:str, data_type:str):
-    'This function loads the data from the data folder given the location and the data type.'
-    df = pd.read_csv(f'{DATA_PATH}/{data_type}/{location}_{data_type}.csv', index_col=0)
-    df.index = pd.to_datetime(df.index)
-    df = df.sort_index()
-    return df
-
-
 def drop_duplicate_index(df):
     'This function drops duplicate indices from a dataframe.'
     df = df[~df.index.duplicated(keep='first')]
@@ -179,11 +164,10 @@ def calc_metrics(df_compare, metrics):
 
 ### Feature Engineering
 
-
 def timeseries_peak_feature_extractor(df):
     'Extracts peak count, maximum peak height, and time of two largest peaks for each day in a pandas dataframe time series'
     
-    timesteplen = infer_frequency(df)
+    timesteplen = infer_frequency(df).seconds // 60
     timesteps_per_day = 24*60//timesteplen
     
     # Find peaks
@@ -210,7 +194,7 @@ def timeseries_peak_feature_extractor(df):
         
         max_idx = np.argmax(day_peak_vals)
         daily_peak_height.append(day_peak_vals[max_idx][0])
-        daily_peak_time.append((day_peaks[max_idx] % 96))
+        daily_peak_time.append((day_peaks[max_idx] % timesteps_per_day))
         
         if len(day_peak_vals) > 1:
             day_peak_vals[max_idx] = -np.inf
@@ -223,7 +207,6 @@ def timeseries_peak_feature_extractor(df):
     
     # Combine results into output DataFrame
     output_df = pd.DataFrame({
-                              'peak_count': daily_peak_count.values,
                               'height_highest_peak': daily_peak_height,
                               'time_highest_peak': daily_peak_time,
                               'height_second_highest_peak': daily_second_peak_height,
