@@ -110,7 +110,8 @@ def train_val_test_split(ts_list, train_end, val_end):
 def train_models(models:list, ts_train_list_piped, ts_train_weather_list_piped=None):
     '''This function trains a list of models on the training data'''
     for model in models:
-        model.fit(ts_train_list_piped, future_covariates=ts_train_weather_list_piped)
+        print(f'Training {model.__class__.__name__}')
+        model.fit(ts_train_list_piped, future_covariates=ts_train_weather_list_piped, verbose=True)
     return models
 
 def make_sklearn_models(list_sklearn_models, encoders, N_LAGS, N_AHEAD, LIKLIHOOD):
