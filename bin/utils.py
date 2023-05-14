@@ -40,20 +40,43 @@ def infer_frequency(df):
         freq = df.index.to_series().diff().mode()[0]
     return freq
 
-def ts_list_concat(ts_list, stride):
-    '''This function concatenates a list of time series into one time series, depending on what the stride was in the eval pipeline'''
-    ts = ts_list[0]
-    for i in range(1, len(ts_list)-1, stride):
-        previous_end = ts.end_time()
-        ts = ts[:-1].append(ts_list[i][previous_end:])
-    return ts
-
 
 def make_index_same(ts1, ts2):
     '''This function makes the indices of two time series the same'''
     ts1 = ts1[ts2.start_time():ts2.end_time()]
     ts2 = ts2[ts1.start_time():ts1.end_time()]
     return ts1, ts2
+
+
+
+
+
+def review_subseries(ts, ts_cov, n_lags, n_ahead):
+    """
+    Reviews a time series and covariate time series to make sure they are long enough for the model
+    """
+    ts_reviewed = [] 
+    ts_cov_reviewed = []
+    for ts in ts:
+        if len(ts) > n_lags + n_ahead:
+            ts_reviewed.append(ts)
+            ts_cov_reviewed.append(ts_cov.slice_intersect(ts))
+    return ts_reviewed, ts_cov_reviewed
+
+
+def get_longest_subseries_idx(ts_list):
+    """
+    Returns the longest subseries from a list of darts TimeSeries objects and its index
+    """
+    longest_subseries_length = 0
+    longest_subseries_idx = 0
+    for idx, ts in enumerate(ts_list):
+        if len(ts) > longest_subseries_length:
+            longest_subseries_length = len(ts)
+            longest_subseries_idx = idx
+    return longest_subseries_idx
+
+
 
 
 def get_df_compares_list(historics, gt):
@@ -111,20 +134,16 @@ def train_models(models:list, ts_train_list_piped, ts_train_weather_list_piped=N
     '''This function trains a list of models on the training data'''
     for model in models:
         print(f'Training {model.__class__.__name__}')
-        model.fit(ts_train_list_piped, future_covariates=ts_train_weather_list_piped, verbose=True)
+        model.fit(ts_train_list_piped, future_covariates=ts_train_weather_list_piped)
     return models
 
-def make_sklearn_models(list_sklearn_models, encoders, N_LAGS, N_AHEAD, LIKLIHOOD):
-    model_instances = []
-    for model in list_sklearn_models:
-        model = model(lags=N_LAGS,
-                      lags_future_covariates=[0],
-                      add_encoders=encoders, 
-                      output_chunk_length=N_AHEAD, 
-                      likelihood=LIKLIHOOD)
-        model_instances.append(model)
-    return model_instances
-
+def ts_list_concat(ts_list):
+    '''This function concatenates a list of time series into one time series, depending on what the stride was in the eval pipeline'''
+    ts = ts_list[0]
+    for i in range(1, len(ts_list)-1):
+        previous_end = ts.end_time()
+        ts = ts[:-1].append(ts_list[i][previous_end:])
+    return ts
 
 def calc_error_scores(metrics, ts_predictions_inverse, trg_inversed):
     metrics_scores = {}
