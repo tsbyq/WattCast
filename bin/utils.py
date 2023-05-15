@@ -48,10 +48,7 @@ def make_index_same(ts1, ts2):
     return ts1, ts2
 
 
-
-
-
-def review_subseries(ts, ts_cov, n_lags, n_ahead):
+def review_subseries(ts, n_lags, n_ahead, ts_cov=None):
     """
     Reviews a time series and covariate time series to make sure they are long enough for the model
     """
@@ -60,7 +57,8 @@ def review_subseries(ts, ts_cov, n_lags, n_ahead):
     for ts in ts:
         if len(ts) > n_lags + n_ahead:
             ts_reviewed.append(ts)
-            ts_cov_reviewed.append(ts_cov.slice_intersect(ts))
+            if ts_cov is not None:
+                ts_cov_reviewed.append(ts_cov.slice_intersect(ts))
     return ts_reviewed, ts_cov_reviewed
 
 
@@ -77,11 +75,8 @@ def get_longest_subseries_idx(ts_list):
     return longest_subseries_idx
 
 
-
-
 def get_df_compares_list(historics, gt):
     '''Returns a list of dataframes with the ground truth and the predictions next to each other'''
-
     df_gt = gt.pd_dataframe()
     df_compare_list = []
     for ts in historics:
@@ -109,41 +104,57 @@ def get_df_diffs(df_list):
         return df_diffs
 
 
-def train_val_test_split(ts_list, train_end, val_end):
-    '''This function splits the time series into train, validation and test sets
-    ts_list: list of time series
-    train_end: end of the training set
-    val_end: end of the validation set'''
-
-    ts_train_list = []
-    ts_val_list = []
-    ts_test_list = []
-
-    for ts in ts_list:
-        ts_train = ts[:train_end]
-        ts_val = ts[train_end:val_end]
-        ts_test = ts[val_end:]
-        ts_train_list.append(ts_train)
-        ts_val_list.append(ts_val)
-        ts_test_list.append(ts_test)
-    
-    return ts_train_list, ts_val_list, ts_test_list
-
-
 def train_models(models:list, ts_train_list_piped, ts_train_weather_list_piped=None):
     '''This function trains a list of models on the training data'''
     for model in models:
         print(f'Training {model.__class__.__name__}')
-        model.fit(ts_train_list_piped, future_covariates=ts_train_weather_list_piped)
+        if model.supports_future_covariates:
+            model.fit(ts_train_list_piped, future_covariates=ts_train_weather_list_piped)
+        elif model.supports_past_covariates:
+            model.fit(ts_train_list_piped)
     return models
 
-def ts_list_concat(ts_list):
-    '''This function concatenates a list of time series into one time series, depending on what the stride was in the eval pipeline'''
+
+def ts_list_concat(ts_list, eval_stride):
+    '''
+    This function concatenates a list of time series into one time series.
+    The result is a time series that concatenates the subseries so that n_ahead is preserved.
+    
+    '''
     ts = ts_list[0]
-    for i in range(1, len(ts_list)-1):
-        previous_end = ts.end_time()
-        ts = ts[:-1].append(ts_list[i][previous_end:])
+    n_ahead = len(ts)
+    skip = n_ahead // eval_stride
+    for i in range(skip, len(ts_list)-skip, skip):
+        ts = ts.append(ts_list[i])
     return ts
+
+
+def predict_testset(model, ts, ts_covs):
+    '''
+    This function predicts the test set using a model and returns the predictions as a dataframe. Used in hyperparameter tuning.
+    '''
+
+    print('Predicting test set...')
+    historics = model.historical_forecasts(ts, 
+                                        future_covariates= ts_covs,
+                                        start=ts_test_piped.get_index_at_point(n_lags),
+                                        verbose=False,
+                                        stride=eval_stride, 
+                                        forecast_horizon=n_ahead, 
+                                        retrain=False, 
+                                        last_points_only=False, # leave this as False unless you want the output to be one series, the rest will not work with this however
+                                        )
+    
+    
+    ts_predictions = ts_list_concat(historics, eval_stride) # concatenating the batches into a single time series for plot 1, this keeps the n_ahead
+    ts_predictions_inverse = pipeline.inverse_transform(ts_predictions) # inverse transform the predictions, we need the original values for the evaluation
+    return ts_predictions_inverse.pd_series().to_frame('prediction')
+
+
+
+
+
+
 
 def calc_error_scores(metrics, ts_predictions_inverse, trg_inversed):
     metrics_scores = {}
@@ -346,18 +357,14 @@ def split_train_val_test_datasets(df, train_start, train_end, val_start, val_end
 
 
 def remove_non_positive_values(df):
-    'Removes all non-positive values from a dataframe and interpolates the missing values'
-    df[df<=0] = np.nan
+    'Removes all non-positive values from a dataframe, interpolates the missing values and sets zeros to a very small value (for boxcox))'
+    df[df<=0] = 1e-6
     df = df.interpolate(method='linear', axis=0).ffill().bfill()
     df.dropna(inplace=True)
     return df
 
-
-
-
-
 def remove_days(df_raw, p=0.05):
-    'Removes days with less than 5% of average total energy consumption of all days'
+    'Removes days with less than p of average total energy consumption of all days'
     df = df_raw.copy()
     days_to_remove = []
     days = list(set(df.index.date))
@@ -367,10 +374,8 @@ def remove_days(df_raw, p=0.05):
             days_to_remove.append(day)
 
     mask = np.in1d(df.index.date, days_to_remove)
-
     df = df[~mask].dropna()
 
-    print(f'Removed {len(days_to_remove)} days with less than {p*100}% of average total energy consumption of all days')
     
     return df
 
