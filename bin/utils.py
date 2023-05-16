@@ -320,7 +320,6 @@ def get_year_list(df):
 
 
 def get_holidays(years, shortcut):
-
     country = getattr(holidays, shortcut)
     holidays_dict = country(years=years)
     df_holidays = pd.DataFrame(holidays_dict.values(), index=holidays_dict.keys())
