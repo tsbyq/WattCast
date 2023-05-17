@@ -16,6 +16,7 @@ from fastdtw import fastdtw
 from tslearn.metrics import dtw
 from sklearn.metrics import mean_absolute_error, mean_squared_error, make_scorer
 from sklearn.preprocessing import MinMaxScaler
+import requests
 
 ### Pytorch and Darts Helper Functions  
 
@@ -23,6 +24,12 @@ def load_from_model_artifact_checkpoint(model_class, base_path, checkpoint_path)
     model = model_class.load(base_path)
     model.model = model._load_from_checkpoint(checkpoint_path)
     return model
+
+def get_weather(lat, lng, start_date, end_date):
+    response = requests.get('https://archive-api.open-meteo.com/v1/archive?latitude={}&longitude={}&start_date={}&end_date={}&hourly=temperature_2m'.format(lat, lng, start_date, end_date))
+    df = pd.DataFrame(response.json()['hourly'])
+    df = df.set_index('time').rename(columns={'temperature_2m': 'degC'})
+    return df.reset_index()[['time', 'degC']]
 
 
 def drop_duplicate_index(df):
