@@ -17,19 +17,61 @@ from tslearn.metrics import dtw
 from sklearn.metrics import mean_absolute_error, mean_squared_error, make_scorer
 from sklearn.preprocessing import MinMaxScaler
 import requests
+from timezonefinder import TimezoneFinder
 
-### Pytorch and Darts Helper Functions  
+
 
 def load_from_model_artifact_checkpoint(model_class, base_path, checkpoint_path):
     model = model_class.load(base_path)
     model.model = model._load_from_checkpoint(checkpoint_path)
     return model
 
-def get_weather(lat, lng, start_date, end_date):
-    response = requests.get('https://archive-api.open-meteo.com/v1/archive?latitude={}&longitude={}&start_date={}&end_date={}&hourly=temperature_2m'.format(lat, lng, start_date, end_date))
-    df = pd.DataFrame(response.json()['hourly'])
-    df = df.set_index('time').rename(columns={'temperature_2m': 'degC'})
-    return df.reset_index()[['time', 'degC']]
+
+def get_weather_data(lat, lng, start_date, end_date,variables:list, keep_UTC = True):
+
+    '''
+    This function fetches weather data from the Open Meteo API and returns a dataframe with the weather data.
+
+    Parameters
+
+    lat: float
+        Latitude of the location
+    lng: float
+        Longitude of the location
+    start_date: str
+        Start date of the weather data in the format YYYY-MM-DD
+    end_date: str
+        End date of the weather data in the format YYYY-MM-DD
+    variables: list
+        List of variables to fetch from the API.
+    keep_UTC: bool
+        If True, the weather data will be returned in UTC. If False, the weather data will be returned in the local timezone of the location.
+
+    Returns
+
+    df_weather: pandas.DataFrame
+        Dataframe with the weather data
+    '''
+    
+    if keep_UTC:
+        tz = 'UTC'
+    else:
+        print('Fetching timezone from coordinates')
+        tf = TimezoneFinder()
+        tz = tf.timezone_at(lng=lng, lat=lat)
+    
+    df_weather = pd.DataFrame()
+    for variable in variables:
+        response = requests.get('https://archive-api.open-meteo.com/v1/archive?latitude={}&longitude={}&start_date={}&end_date={}&hourly={}'.format(lat, lng, start_date, end_date, variable))
+        df = pd.DataFrame(response.json()['hourly'])
+        df = df.set_index('time')
+        df_weather = pd.concat([df_weather, df], axis=1)
+
+    df_weather.index = pd.to_datetime(df_weather.index)
+    df_weather = df_weather.tz_localize('UTC').tz_convert(tz)
+
+    return df_weather
+
 
 
 def drop_duplicate_index(df):
