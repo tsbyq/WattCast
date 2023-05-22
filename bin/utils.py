@@ -18,6 +18,7 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, make_scorer
 from sklearn.preprocessing import MinMaxScaler
 import requests
 from timezonefinder import TimezoneFinder
+import time
 
 
 
@@ -81,13 +82,10 @@ def drop_duplicate_index(df):
 
 
 def infer_frequency(df):
-    'This function infers the frequency of the time series data.'
-    freq = pd.infer_freq(df.index)
-
-    if freq is None:
-        #taking the mode of the difference between the indices
-        freq = df.index.to_series().diff().mode()[0]
+    '''Infers the frequency of a timeseries dataframe and returns the value in minutes'''
+    freq = df.index.to_series().diff().mode()[0].seconds / 60
     return freq
+
 
 
 def make_index_same(ts1, ts2):
@@ -155,13 +153,22 @@ def get_df_diffs(df_list):
 
 def train_models(models:list, ts_train_list_piped, ts_train_weather_list_piped=None):
     '''This function trains a list of models on the training data'''
+    #TODO add timer and log that training time to wandb
+    
+    run_times = {}
+    
     for model in models:
+        start_time = time.time()
         print(f'Training {model.__class__.__name__}')
         if model.supports_future_covariates:
             model.fit(ts_train_list_piped, future_covariates=ts_train_weather_list_piped)
         elif model.supports_past_covariates:
             model.fit(ts_train_list_piped)
-    return models
+        
+        
+        end_time = time.time()
+        run_times[model.__class__.__name__] = end_time - start_time
+    return models, run_times
 
 
 def ts_list_concat(ts_list, eval_stride):
@@ -247,7 +254,7 @@ def calc_metrics(df_compare, metrics):
 def timeseries_peak_feature_extractor(df):
     'Extracts peak count, maximum peak height, and time of two largest peaks for each day in a pandas dataframe time series'
     
-    timesteplen = infer_frequency(df).seconds // 60
+    timesteplen = infer_frequency(df)
     timesteps_per_day = 24*60//timesteplen
     
     # Find peaks
@@ -386,9 +393,39 @@ def get_holidays(years, shortcut):
 
 
 def standardize_format(df:pd.DataFrame, type: str, timestep:int, location:str, unit:str):
+
+    '''
+    
+    This function standardizes the format of the dataframes. It resamples the dataframes to the specified timestep and interpolates the missing values.
+
+    Parameters
+
+    df: pandas.DataFrame
+        Dataframe with the data
+    type: str
+        Type of the data, e.g. 'electricity' and name of the column
+    timestep: int
+        Timestep in minutes
+    location: str
+        Location of the data, e.g. 'apartment'
+    unit: str
+        Unit of the data, e.g. 'W' and name of the column
+
+    Returns
+
+    df: pandas.DataFrame
+        Dataframe with the data in the standardized format
+
+    '''
+    
+    current_timestep = infer_frequency(df) # output is in minutes
     df = df.sort_index()
     df = remove_duplicate_index(df)
-    df = df.resample(f'{timestep}T').mean()
+    if current_timestep <= timestep:
+        df = df.resample(f'{timestep}T').mean()
+    else:
+        df = df.resample(f'{timestep}T').interpolate(method='linear', axis=0).ffill().bfill()
+        
     df.index.name = 'datetime'
     df.columns = [f'{type}_{location}_{unit}']
     return df
