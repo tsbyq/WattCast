@@ -209,9 +209,6 @@ def predict_testset(model, ts, ts_covs):
 
 
 
-
-
-
 def calc_error_scores(metrics, ts_predictions_inverse, trg_inversed):
     metrics_scores = {}
     for metric in metrics:
