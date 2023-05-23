@@ -90,8 +90,8 @@ def infer_frequency(df):
 
 def make_index_same(ts1, ts2):
     '''This function makes the indices of two time series the same'''
-    ts1 = ts1[ts2.start_time():ts2.end_time()]
-    ts2 = ts2[ts1.start_time():ts1.end_time()]
+    ts1 = ts1.slice_intersect(ts2)
+    ts2 = ts2.slice_intersect(ts1)
     return ts1, ts2
 
 
