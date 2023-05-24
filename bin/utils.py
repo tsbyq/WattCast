@@ -424,7 +424,7 @@ def standardize_format(df:pd.DataFrame, type: str, timestep:int, location:str, u
         df = df.resample(f'{timestep}T').interpolate(method='linear', axis=0).ffill().bfill()
         
     df.index.name = 'datetime'
-    df.columns = [f'{type}_{location}_{unit}']
+    df.columns = [f'{location}_{type}_{unit}']
     return df
 
 # a function to do a train test split, the train should be a full year and the test should be a tuple of datasets, each one month long
