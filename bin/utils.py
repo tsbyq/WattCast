@@ -19,6 +19,7 @@ from sklearn.preprocessing import MinMaxScaler
 import requests
 from timezonefinder import TimezoneFinder
 import time
+from darts.metrics import rmse
 
 
 
@@ -185,7 +186,8 @@ def ts_list_concat(ts_list, eval_stride):
     return ts
 
 
-def predict_testset(model, ts, ts_covs):
+
+def predict_testset(model, ts, ts_covs, n_lags, n_ahead, eval_stride, pipeline):
     '''
     This function predicts the test set using a model and returns the predictions as a dataframe. Used in hyperparameter tuning.
     '''
@@ -193,7 +195,7 @@ def predict_testset(model, ts, ts_covs):
     print('Predicting test set...')
     historics = model.historical_forecasts(ts, 
                                         future_covariates= ts_covs,
-                                        start=ts_test_piped.get_index_at_point(n_lags),
+                                        start=ts.get_index_at_point(n_lags),
                                         verbose=False,
                                         stride=eval_stride, 
                                         forecast_horizon=n_ahead, 
@@ -202,10 +204,14 @@ def predict_testset(model, ts, ts_covs):
                                         )
     
     
+
+    historics_gt = [ts.slice_intersect(historic) for historic in historics]
+    score = np.array(rmse(historics_gt, historics)).mean()
+
     ts_predictions = ts_list_concat(historics, eval_stride) # concatenating the batches into a single time series for plot 1, this keeps the n_ahead
     ts_predictions_inverse = pipeline.inverse_transform(ts_predictions) # inverse transform the predictions, we need the original values for the evaluation
-    return ts_predictions_inverse.pd_series().to_frame('prediction')
-
+    
+    return ts_predictions_inverse.pd_series().to_frame('prediction'), score
 
 
 
