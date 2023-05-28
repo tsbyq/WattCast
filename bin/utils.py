@@ -231,6 +231,7 @@ def get_error_metric_table(metrics, ts_predictions_per_model, trg_test_inversed)
         error_metric_table[model_name] = metrics_scores
     
     df_metrics  = pd.DataFrame(error_metric_table).T
+    df_metrics.index.name = 'model'
     return df_metrics
 
 
