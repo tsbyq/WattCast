@@ -75,7 +75,6 @@ def get_weather_data(lat, lng, start_date, end_date,variables:list, keep_UTC = T
     return df_weather
 
 
-
 def drop_duplicate_index(df):
     'This function drops duplicate indices from a dataframe.'
     df = df[~df.index.duplicated(keep='first')]
@@ -96,14 +95,14 @@ def make_index_same(ts1, ts2):
     return ts1, ts2
 
 
-def review_subseries(ts, n_lags, n_ahead, ts_cov=None):
+def review_subseries(ts, min_len, ts_cov=None):
     """
     Reviews a time series and covariate time series to make sure they are long enough for the model
     """
     ts_reviewed = [] 
     ts_cov_reviewed = []
     for ts in ts:
-        if len(ts) > n_lags + n_ahead:
+        if len(ts) > min_len:
             ts_reviewed.append(ts)
             if ts_cov is not None:
                 ts_cov_reviewed.append(ts_cov.slice_intersect(ts))
@@ -121,6 +120,20 @@ def get_longest_subseries_idx(ts_list):
             longest_subseries_length = len(ts)
             longest_subseries_idx = idx
     return longest_subseries_idx
+
+
+def ts_list_concat(ts_list, eval_stride):
+    '''
+    This function concatenates a list of time series into one time series.
+    The result is a time series that concatenates the subseries so that n_ahead is preserved.
+    
+    '''
+    ts = ts_list[0]
+    n_ahead = len(ts)
+    skip = n_ahead // eval_stride
+    for i in range(skip, len(ts_list)-skip, skip):
+        ts = ts.append(ts_list[i])
+    return ts
 
 
 def get_df_compares_list(historics, gt):
@@ -152,39 +165,24 @@ def get_df_diffs(df_list):
         return df_diffs
 
 
-def train_models(models:list, ts_train_list_piped, ts_train_weather_list_piped=None):
+def train_models(models:list, ts_train_piped, ts_train_weather_piped=None, ts_val_piped=None, ts_val_weather_piped=None, use_cov_as_past=False):
     '''This function trains a list of models on the training data'''
-    #TODO add timer and log that training time to wandb
-    
+
     run_times = {}
     
     for model in models:
         start_time = time.time()
         print(f'Training {model.__class__.__name__}')
         if model.supports_future_covariates:
-            model.fit(ts_train_list_piped, future_covariates=ts_train_weather_list_piped)
-        elif model.supports_past_covariates:
-            model.fit(ts_train_list_piped)
-        
+            model.fit(ts_train_piped, future_covariates=ts_train_weather_piped, val_series=ts_val_piped, val_future_covariates=ts_val_weather_piped)
+        elif use_cov_as_past and not model.supports_future_covariates:
+            model.fit(ts_train_piped, past_covariates=ts_train_weather_piped, val_series=ts_val_piped, val_past_covariates=ts_val_weather_piped)
+        else:
+            model.fit(ts_train_piped, val_series=ts_val_piped)
         
         end_time = time.time()
         run_times[model.__class__.__name__] = end_time - start_time
     return models, run_times
-
-
-def ts_list_concat(ts_list, eval_stride):
-    '''
-    This function concatenates a list of time series into one time series.
-    The result is a time series that concatenates the subseries so that n_ahead is preserved.
-    
-    '''
-    ts = ts_list[0]
-    n_ahead = len(ts)
-    skip = n_ahead // eval_stride
-    for i in range(skip, len(ts_list)-skip, skip):
-        ts = ts.append(ts_list[i])
-    return ts
-
 
 
 def predict_testset(model, ts, ts_covs, n_lags, n_ahead, eval_stride, pipeline):
@@ -193,8 +191,10 @@ def predict_testset(model, ts, ts_covs, n_lags, n_ahead, eval_stride, pipeline):
     '''
 
     print('Predicting test set...')
+    
+
     historics = model.historical_forecasts(ts, 
-                                        future_covariates= ts_covs,
+                                        future_covariates= ts_covs if model.supports_future_covariates else None,
                                         start=ts.get_index_at_point(n_lags),
                                         verbose=False,
                                         stride=eval_stride, 
