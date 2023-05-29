@@ -12,7 +12,6 @@ import holidays
 from scipy.stats import boxcox
 from scipy.signal import find_peaks_cwt
 from scipy.spatial.distance import euclidean
-from fastdtw import fastdtw
 from tslearn.metrics import dtw
 from sklearn.metrics import mean_absolute_error, mean_squared_error, make_scorer
 from sklearn.preprocessing import MinMaxScaler
@@ -20,7 +19,34 @@ import requests
 from timezonefinder import TimezoneFinder
 import time
 from darts.metrics import rmse
+import h5py
 
+
+
+def show_keys(dir_path):
+
+    '''
+
+    Function to show the keys in the h5py file.
+
+    '''
+
+    locations_per_file = {}
+    temporal_resolutions_per_file = {}
+
+    for file_name in os.listdir(dir_path):
+        if file_name.endswith('.h5'):
+            # open the file in read mode
+            with h5py.File(os.path.join(dir_path, file_name), 'r') as f:
+                # print the keys in the file
+                locations = list(f.keys())
+                locations_per_file[file_name] = locations
+                for location in locations:
+                    temporal_resolutions = list(f[location].keys())
+                    temporal_resolutions_per_file[file_name] = temporal_resolutions
+
+    print(locations_per_file)
+    print(temporal_resolutions_per_file)
 
 
 def load_from_model_artifact_checkpoint(model_class, base_path, checkpoint_path):
@@ -165,104 +191,7 @@ def get_df_diffs(df_list):
         return df_diffs
 
 
-def train_models(models:list, ts_train_piped, ts_train_weather_piped=None, ts_val_piped=None, ts_val_weather_piped=None, use_cov_as_past=False):
-    '''This function trains a list of models on the training data and validates them on the validation data if it is possible.
-    
-    
-    '''
 
-    run_times = {}
-    
-    for model in models:
-        start_time = time.time()
-        print(f'Training {model.__class__.__name__}')
-        if model.supports_future_covariates:
-            try:
-                model.fit(ts_train_piped, future_covariates=ts_train_weather_piped, val_series=ts_val_piped, val_future_covariates=ts_val_weather_piped)
-            except:
-                model.fit(ts_train_piped, future_covariates=ts_train_weather_piped)
-        elif use_cov_as_past and not model.supports_future_covariates:
-            try:
-                model.fit(ts_train_piped, past_covariates=ts_train_weather_piped, val_series=ts_val_piped, val_past_covariates=ts_val_weather_piped)
-            except:
-                model.fit(ts_train_piped, past_covariates=ts_train_weather_piped)
-        else:
-            try:
-                model.fit(ts_train_piped, val_series=ts_val_piped)
-            except:
-                model.fit(ts_train_piped)
-        
-        end_time = time.time()
-        run_times[model.__class__.__name__] = end_time - start_time
-    return models, run_times
-
-
-def predict_testset(model, ts, ts_covs, n_lags, n_ahead, eval_stride, pipeline):
-    '''
-    This function predicts the test set using a model and returns the predictions as a dataframe. Used in hyperparameter tuning.
-    '''
-
-    print('Predicting test set...')
-    
-
-    historics = model.historical_forecasts(ts, 
-                                        future_covariates= ts_covs if model.supports_future_covariates else None,
-                                        start=ts.get_index_at_point(n_lags),
-                                        verbose=False,
-                                        stride=eval_stride, 
-                                        forecast_horizon=n_ahead, 
-                                        retrain=False, 
-                                        last_points_only=False, # leave this as False unless you want the output to be one series, the rest will not work with this however
-                                        )
-    
-    
-
-    historics_gt = [ts.slice_intersect(historic) for historic in historics]
-    score = np.array(rmse(historics_gt, historics)).mean()
-
-    ts_predictions = ts_list_concat(historics, eval_stride) # concatenating the batches into a single time series for plot 1, this keeps the n_ahead
-    ts_predictions_inverse = pipeline.inverse_transform(ts_predictions) # inverse transform the predictions, we need the original values for the evaluation
-    
-    return ts_predictions_inverse.pd_series().to_frame('prediction'), score
-
-
-
-def calc_error_scores(metrics, ts_predictions_inverse, trg_inversed):
-    metrics_scores = {}
-    for metric in metrics:
-        score = metric(ts_predictions_inverse, trg_inversed)
-        metrics_scores[metric.__name__] = score
-    return metrics_scores
-
-def get_error_metric_table(metrics, ts_predictions_per_model, trg_test_inversed):
-
-    error_metric_table = {}
-    for model_name, ts_predictions_inverse in ts_predictions_per_model.items():
-        ts_predictions_inverse, trg_inversed = make_index_same(ts_predictions_inverse, trg_test_inversed)
-        metrics_scores = calc_error_scores(metrics, ts_predictions_inverse, trg_inversed)
-        error_metric_table[model_name] = metrics_scores
-    
-    df_metrics  = pd.DataFrame(error_metric_table).T
-    df_metrics.index.name = 'model'
-    return df_metrics
-
-
-def calc_metrics(df_compare, metrics):
-    "calculates metrics for a dataframe with a ground truth column and predictions, ground truth column must be the first column"
-    metric_series_list = {}
-    for metric in metrics:
-        metric_name = metric.__name__
-        metric_result = df_compare.apply(lambda x: metric(x, df_compare.iloc[:,0]), axis=0)
-        if metric.__name__ == 'mean_squared_error':
-            metric_result = np.sqrt(metric_result)
-            metric_name = 'root_mean_squared_error'
-        elif metric.__name__ == 'r2_score':
-            metric_result = 1 - metric_result
-
-        metric_series_list[metric_name] = metric_result
-
-    df_metrics = pd.DataFrame(metric_series_list).iloc[1:,:]
-    return df_metrics
 
 
 ### Feature Engineering
