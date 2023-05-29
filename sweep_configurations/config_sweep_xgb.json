@@ -48,6 +48,12 @@
                 0.7,
                 1
             ]
+        },
+        "datetime_encodings": {
+            "values": [
+                    1,
+                    0
+            ]
         }
     }
 }

@@ -1,1 +1,62 @@
-{"method": "bayes", "metric": {"name": "val_loss", "goal": "minimize"}, "parameters": {"num_stacks": {"values": [10, 20, 30, 40, 50]}, "num_blocks": {"values": [1, 2, 3]}, "num_layers": {"values": [4, 6, 8, 10]}, "layer_widths": {"values": [128, 256, 512, 1024]}, "dropout": {"values": [0, 0.1, 0.2]}, "lr": {"values": [0.0003, 0.001, 0.01, 0.1]}}}
+{
+    "method": "bayes",
+    "metric": {
+        "name": "val_loss",
+        "goal": "minimize"
+    },
+    "parameters": {
+        "num_stacks": {
+            "values": [
+                10,
+                20,
+                30,
+                40,
+                50
+            ]
+        },
+        "num_blocks": {
+            "values": [
+                1,
+                2,
+                3
+            ]
+        },
+        "num_layers": {
+            "values": [
+                4,
+                6,
+                8,
+                10
+            ]
+        },
+        "layer_widths": {
+            "values": [
+                128,
+                256,
+                512,
+                1024
+            ]
+        },
+        "dropout": {
+            "values": [
+                0,
+                0.1,
+                0.2
+            ]
+        },
+        "lr": {
+            "values": [
+                0.0003,
+                0.001,
+                0.01,
+                0.1
+            ]
+        },
+        "datetime_encodings": {
+            "values": [
+                    1,
+                    0
+            ]
+        }
+    }
+}

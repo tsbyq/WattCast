@@ -40,6 +40,12 @@
                 5,
                 10
             ]
+        },
+        "datetime_encodings": {
+            "values": [
+                    1,
+                    0
+            ]
         }
     }
 }
