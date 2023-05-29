@@ -1,1 +1,0 @@
-{"name": "gru_sweep", "method": "bayes", "metric": {"name": "val_loss", "goal": "minimize"}, "parameters": {"batch_size": {"values": [32, 64, 128, 256]}, "hidden_size": {"values": [32, 64, 128, 256]}, "n_rnn_layers": {"values": [1, 2, 3]}, "dropout": {"values": [0.0, 0.1, 0.2, 0.3, 0.4]}, "learning_rate": {"values": [0.001, 0.01, 0.1]}}}

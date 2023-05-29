@@ -166,7 +166,10 @@ def get_df_diffs(df_list):
 
 
 def train_models(models:list, ts_train_piped, ts_train_weather_piped=None, ts_val_piped=None, ts_val_weather_piped=None, use_cov_as_past=False):
-    '''This function trains a list of models on the training data'''
+    '''This function trains a list of models on the training data and validates them on the validation data if it is possible.
+    
+    
+    '''
 
     run_times = {}
     
@@ -174,11 +177,20 @@ def train_models(models:list, ts_train_piped, ts_train_weather_piped=None, ts_va
         start_time = time.time()
         print(f'Training {model.__class__.__name__}')
         if model.supports_future_covariates:
-            model.fit(ts_train_piped, future_covariates=ts_train_weather_piped, val_series=ts_val_piped, val_future_covariates=ts_val_weather_piped)
+            try:
+                model.fit(ts_train_piped, future_covariates=ts_train_weather_piped, val_series=ts_val_piped, val_future_covariates=ts_val_weather_piped)
+            except:
+                model.fit(ts_train_piped, future_covariates=ts_train_weather_piped)
         elif use_cov_as_past and not model.supports_future_covariates:
-            model.fit(ts_train_piped, past_covariates=ts_train_weather_piped, val_series=ts_val_piped, val_past_covariates=ts_val_weather_piped)
+            try:
+                model.fit(ts_train_piped, past_covariates=ts_train_weather_piped, val_series=ts_val_piped, val_past_covariates=ts_val_weather_piped)
+            except:
+                model.fit(ts_train_piped, past_covariates=ts_train_weather_piped)
         else:
-            model.fit(ts_train_piped, val_series=ts_val_piped)
+            try:
+                model.fit(ts_train_piped, val_series=ts_val_piped)
+            except:
+                model.fit(ts_train_piped)
         
         end_time = time.time()
         run_times[model.__class__.__name__] = end_time - start_time

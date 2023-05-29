@@ -1,0 +1,8 @@
+{
+    "method": "bayes",
+    "metric": {
+        "name": "eval_loss",
+        "goal": "minimize"
+    },
+    "parameters": {}
+}
