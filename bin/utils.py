@@ -20,7 +20,31 @@ from timezonefinder import TimezoneFinder
 import time
 from darts.metrics import rmse
 import h5py
+from joblib import dump, load
 
+
+
+
+
+
+def create_directory(directory_path):
+
+    if not os.path.exists(directory_path):
+        os.makedirs(directory_path)
+        print(f"Directory created: {directory_path}")
+    else:
+        print(f"Directory already exists: {directory_path}")
+
+
+def save_models_to_disk(config, models_dict):
+    model_dir = os.path.join(os.getcwd(), 'models')
+
+    create_directory(model_dir)
+    for model in models_dict.keys():
+        model_path = os.path.join(model_dir, config.spatial_scale + '_' + config.location)
+        create_directory(model_path)
+        print(model_dir)
+        models_dict[model].save(os.path.join(model_path, model+ ".joblib"))
 
 
 def show_keys(dir_path):
