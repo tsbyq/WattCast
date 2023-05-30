@@ -1,4 +1,5 @@
 # train_eval.py
+
 import os
 import wandb
 import pandas as pd
@@ -7,7 +8,7 @@ import time
 
 import plotly.express as px
 from sklearn.preprocessing import MinMaxScaler, RobustScaler
-from bin.utils import review_subseries, get_longest_subseries_idx, ts_list_concat, make_index_same
+from utils import review_subseries, get_longest_subseries_idx, ts_list_concat, make_index_same
 
 import darts
 from darts import TimeSeries
@@ -29,11 +30,8 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 
 
+dir_path = os.path.join(os.path.dirname(os.getcwd()), 'data', 'clean_data')
 
-
-dir_path = os.path.join(os.getcwd(), 'data', 'clean_data')
-
-print(dir_path)
 
 class Config:
 
