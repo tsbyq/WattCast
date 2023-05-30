@@ -91,7 +91,6 @@ class Config:
         return config
 
 
-
 def get_best_run_config(project_name, metric, model, scale):
 
     '''
@@ -114,9 +113,11 @@ def get_best_run_config(project_name, metric, model, scale):
             best_run = sweep.best_run(order=metric)
             config = best_run.config
             name = best_run.name
+
+    if config == None:
+        print(f"Could not find a sweep for model {model} and scale {scale} in project {project_name}.")
     
     return config, name
-
 
 
 def data_pipeline(config):
