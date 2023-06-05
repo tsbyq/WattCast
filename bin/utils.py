@@ -19,6 +19,7 @@ import requests
 from timezonefinder import TimezoneFinder
 import time
 from darts.metrics import rmse
+from darts.models import LinearRegressionModel
 import h5py
 from joblib import dump, load
 
@@ -83,28 +84,6 @@ class Config:
 
 
 
-
-def get_model_instances(config_per_model):
-
-    '''Returns a list of model instances for the models that were tuned and appends a linear regression model.'''
-
-
-    model_instances = []
-    for model in tuned_models:
-        config = Config().from_dict(config_per_model[model][0])
-        model_instances.append(get_model_instance(config))
-
-
-    # since we did not optimize the hyperparameters for the linear regression model, we need to create a new instance
-    lr_model = LinearRegressionModel(
-    lags = config.n_lags,
-    lags_future_covariates=[0],
-    output_chunk_length= config.n_ahead,
-    add_encoders=config.datetime_encoders,
-    random_state=42)
-
-    model_instances.append(lr_model) 
-    return model_instances
 
 
 
@@ -253,6 +232,7 @@ def get_longest_subseries_idx(ts_list):
     return longest_subseries_idx
 
 
+
 def ts_list_concat(ts_list, eval_stride):
     '''
     This function concatenates a list of time series into one time series.
@@ -263,8 +243,12 @@ def ts_list_concat(ts_list, eval_stride):
     n_ahead = len(ts)
     skip = n_ahead // eval_stride
     for i in range(skip, len(ts_list)-skip, skip):
-        ts = ts.append(ts_list[i])
+        print(ts.end_time(), ts_list[i].start_time())
+        ts_1 = ts_list[i][ts.end_time():]
+        timestamp_one_before = ts_1.start_time() - ts.freq
+        ts = ts[:timestamp_one_before].append(ts_1)
     return ts
+
 
 
 def get_df_compares_list(historics, gt):

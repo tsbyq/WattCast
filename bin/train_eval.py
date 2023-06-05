@@ -19,7 +19,7 @@ from darts.dataprocessing import Pipeline
 from darts.metrics import rmse
 from darts.models import (
                             BlockRNNModel, NBEATSModel, RandomForest, 
-                            LightGBMModel, XGBModel, 
+                            LightGBMModel, XGBModel, LinearRegressionModel
                             )
 
 
@@ -157,6 +157,31 @@ def data_pipeline(config):
     trg_test_inversed = pipeline.inverse_transform(ts_test_piped, partial=True)[config.longest_ts_test_idx]
 
     return pipeline, ts_train_piped, ts_val_piped, ts_test_piped, ts_train_weather_piped, ts_val_weather_piped, ts_test_weather_piped, trg_train_inversed, trg_val_inversed, trg_test_inversed
+
+
+def get_model_instances(tuned_models, config_per_model):
+
+    '''Returns a list of model instances for the models that were tuned and appends a linear regression model.'''
+
+    
+    model_instances = []
+    for model in tuned_models:
+        config = Config().from_dict(config_per_model[model][0])
+        model_instances.append(get_model_instance(config))
+
+
+    # since we did not optimize the hyperparameters for the linear regression model, we need to create a new instance
+    lr_model = LinearRegressionModel(
+    lags = config.n_lags,
+    lags_future_covariates=[0],
+    output_chunk_length= config.n_ahead,
+    add_encoders=config.datetime_encoders,
+    random_state=42)
+
+    model_instances.append(lr_model) 
+    return model_instances
+
+
 
 
 
