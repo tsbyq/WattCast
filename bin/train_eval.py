@@ -33,130 +33,61 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 dir_path = os.path.join(os.path.dirname(os.getcwd()), 'data', 'clean_data')
 
 
-def get_best_run_config(project_name, metric, model, scale):
 
+
+class Config:
     '''
-    
-    Returns the config of the best run of a sweep for a given model and location.
-    
+    Class to store config parameters, to circumvent the wandb.config when combining multiple models.
     '''
 
-    sweeps = []
-    config = None
-    name = None
+    def __init__(self):
+        self.data = {}
 
-    api = wandb.Api()
-    for project in api.projects():
-        if project_name == project.name:
-            sweeps = project.sweeps()
+    def __getattr__(self, key):
+        if key in self.data:
+            return self.data[key]
+        else:
+            raise AttributeError(f"'Config' object has no attribute '{key}'")
 
-    for sweep in sweeps:
-        if model in sweep.name and scale in sweep.name:
-            best_run = sweep.best_run(order=metric)
-            config = best_run.config
-            name = best_run.name
+    def __setattr__(self, key, value):
+        if key == 'data':
+            # Allow normal assignment for the 'data' attribute
+            super().__setattr__(key, value)
+        else:
+            self.data[key] = value
 
-    if config == None:
-        print(f"Could not find a sweep for model {model} and scale {scale} in project {project_name}.")
-    
-    return config, name
+    def __delattr__(self, key):
+        if key in self.data:
+            del self.data[key]
+        else:
+            raise AttributeError(f"'Config' object has no attribute '{key}'")
+
+    def __len__(self):
+        return len(self.data)
+
+    def keys(self):
+        return self.data.keys()
+
+    def values(self):
+        return self.data.values()
+
+    def items(self):
+        return self.data.items()
+
+    def __getitem__(self, key):
+        return self.data[key]
+
+    def __setitem__(self, key, value):
+        self.data[key] = value
+
+    @classmethod
+    def from_dict(cls, data):
+        config = cls()
+        for key, value in data.items():
+            config[key] = value  # Preserve nested dictionaries without converting
+        return config
 
 
-def data_pipeline(config):
-
-    if config.temp_resolution == 60:
-        timestep_encoding = ["hour"] 
-    elif config.temp_resolution == 15:
-        timestep_encoding = ['quarter']
-    else:
-        timestep_encoding = ["hour", "minute"]
-
-
-    datetime_encoders =  {
-                        "cyclic": {"future": timestep_encoding}, 
-                        "position": {"future": ["relative",]},
-                        "datetime_attribute": {"future": ["dayofweek", "week"]},
-                        'position': {'past': ['relative'], 'future': ['relative']},
-                }
-
-    datetime_encoders = datetime_encoders if config.datetime_encodings else None
-
-    config['datetime_encoders'] = datetime_encoders
-
-
-    config.timesteps_per_hour = int(60 / config.temp_resolution)
-    config.n_lags = config.lookback_in_hours * config.timesteps_per_hour
-    config.n_ahead = config.horizon_in_hours * config.timesteps_per_hour
-    config.eval_stride = int(np.sqrt(config.n_ahead)) # evaluation stride, how often to evaluate the model, in this case we evaluate every n_ahead steps
-
-    # Loading Data
-    df_train = pd.read_hdf(os.path.join(dir_path, f'{config.spatial_scale}.h5'), key=f'{config.location}/{config.temp_resolution}min/train_target')
-    df_val = pd.read_hdf(os.path.join(dir_path, f'{config.spatial_scale}.h5'), key=f'{config.location}/{config.temp_resolution}min/val_target')
-    df_test = pd.read_hdf(os.path.join(dir_path, f'{config.spatial_scale}.h5'),key=f'{config.location}/{config.temp_resolution}min/test_target')
-
-    df_cov_train = pd.read_hdf(os.path.join(dir_path, f'{config.spatial_scale}.h5'), key=f'{config.location}/{config.temp_resolution}min/train_cov')
-    df_cov_val = pd.read_hdf(os.path.join(dir_path, f'{config.spatial_scale}.h5'), key=f'{config.location}/{config.temp_resolution}min/val_cov')
-    df_cov_test = pd.read_hdf(os.path.join(dir_path,f'{config.spatial_scale}.h5'), key=f'{config.location}/{config.temp_resolution}min/test_cov')
-
-    # Heat wave covariatem, categorical variable
-    df_cov_train['heat_wave'] =  df_cov_train[df_cov_train.columns[0]] > df_cov_train[df_cov_train.columns[0]].quantile(0.95)
-    df_cov_val['heat_wave'] =  df_cov_val[df_cov_val.columns[0]] > df_cov_val[df_cov_val.columns[0]].quantile(0.95)
-    df_cov_test['heat_wave'] =  df_cov_test[df_cov_test.columns[0]] > df_cov_test[df_cov_test.columns[0]].quantile(0.95)
-
-    # into darts format
-    ts_train = darts.TimeSeries.from_dataframe(df_train, freq=str(config.temp_resolution) + 'min')
-    ts_train = extract_subseries(ts_train)
-    ts_val = darts.TimeSeries.from_dataframe(df_val, freq=str(config.temp_resolution) + 'min')
-    ts_val = extract_subseries(ts_val)
-    ts_test = darts.TimeSeries.from_dataframe(df_test, freq=str(config.temp_resolution) + 'min')
-    ts_test = extract_subseries(ts_test)
-
-    # Covariates
-    if config.weather:
-        ts_cov_train = darts.TimeSeries.from_dataframe(df_cov_train, freq=str(config.temp_resolution) + 'min')
-        ts_cov_val = darts.TimeSeries.from_dataframe(df_cov_val, freq=str(config.temp_resolution) + 'min')
-        ts_cov_test = darts.TimeSeries.from_dataframe(df_cov_test, freq=str(config.temp_resolution) + 'min')
-    else:
-        ts_cov_train = None
-        ts_cov_val = None
-        ts_cov_test = None
-
-    # Reviewing subseries to make sure they are long enough
-    ts_train, ts_cov_train = review_subseries(ts_train, config.n_lags + config.n_ahead, ts_cov_train)
-    ts_val, ts_cov_val = review_subseries(ts_val, config.n_lags + config.n_ahead, ts_cov_val)
-    ts_test, ts_cov_test = review_subseries(ts_test, config.n_lags +config.n_ahead, ts_cov_test)
-
-    # getting the index of the longest subseries, to be used for evaluation later
-    config.longest_ts_val_idx = get_longest_subseries_idx(ts_val)
-    config.longest_ts_test_idx = get_longest_subseries_idx(ts_test)
-
-    # Preprocessing Pipeline
-    pipeline = Pipeline( # missing values have been filled in the 'data_prep.ipynb'
-                    [
-                    BoxCox() if config.boxcox else None,
-                    Scaler(MinMaxScaler()),
-                    ]
-                    )
-    ts_train_piped = pipeline.fit_transform(ts_train)
-    ts_val_piped = pipeline.transform(ts_val)
-    ts_test_piped = pipeline.transform(ts_test)
-
-    # Weather Pipeline
-    if config.weather:
-        pipeline_weather = Pipeline([Scaler(RobustScaler())])
-        ts_train_weather_piped = pipeline_weather.fit_transform(ts_cov_train)
-        ts_val_weather_piped = pipeline_weather.transform(ts_cov_val)
-        ts_test_weather_piped = pipeline_weather.transform(ts_cov_test)
-    else:
-        ts_train_weather_piped = None
-        ts_val_weather_piped = None
-        ts_test_weather_piped = None
-
-    trg_train_inversed = pipeline.inverse_transform(ts_train_piped, partial=True) 
-    trg_val_inversed = pipeline.inverse_transform(ts_val_piped, partial=True)[config.longest_ts_val_idx] 
-    trg_test_inversed = pipeline.inverse_transform(ts_test_piped, partial=True)[config.longest_ts_test_idx]
-
-    return pipeline, ts_train_piped, ts_val_piped, ts_test_piped, ts_train_weather_piped, ts_val_weather_piped, ts_test_weather_piped, trg_train_inversed, trg_val_inversed, trg_test_inversed
 
 
 def get_model_instances(tuned_models, config_per_model):
@@ -164,13 +95,16 @@ def get_model_instances(tuned_models, config_per_model):
     '''Returns a list of model instances for the models that were tuned and appends a linear regression model.'''
 
     
+    config = Config().from_dict(config_per_model[tuned_models[0]][0])
     model_instances = []
     for model in tuned_models:
+        print('getting model instance for ' + model)
         config = Config().from_dict(config_per_model[model][0])
-        model_instances.append(get_model_instance(config))
-
+        print(config)
+        model_instances.append(get_model(config))
 
     # since we did not optimize the hyperparameters for the linear regression model, we need to create a new instance
+    print('getting model instance for linear regression')
     lr_model = LinearRegressionModel(
     lags = config.n_lags,
     lags_future_covariates=[0],
@@ -185,7 +119,7 @@ def get_model_instances(tuned_models, config_per_model):
 
 
 
-def get_model_instance(config):
+def get_model(config):
 
     '''Returns model instance, based on the config.'''
 
@@ -205,7 +139,7 @@ def get_model_instance(config):
     'accelerator': 'gpu',
     'devices': [0],
     'callbacks': [EarlyStopping(monitor='val_loss', patience=5, mode='min')],
-    'logger': WandbLogger(log_model='all'),
+    #'logger': WandbLogger(log_model='all'),
     }
 
     schedule_kwargs = {
@@ -337,6 +271,134 @@ def get_model_instance(config):
                     )
 
     return model
+
+
+
+
+def get_best_run_config(project_name, metric, model, scale):
+
+    '''
+    
+    Returns the config of the best run of a sweep for a given model and location.
+    
+    '''
+
+    sweeps = []
+    config = None
+    name = None
+
+    api = wandb.Api()
+    for project in api.projects():
+        if project_name == project.name:
+            sweeps = project.sweeps()
+
+    for sweep in sweeps:
+        if model in sweep.name and scale in sweep.name:
+            best_run = sweep.best_run(order=metric)
+            config = best_run.config
+            name = best_run.name
+
+    if config == None:
+        print(f"Could not find a sweep for model {model} and scale {scale} in project {project_name}.")
+    
+    return config, name
+
+
+def data_pipeline(config):
+
+    if config.temp_resolution == 60:
+        timestep_encoding = ["hour"] 
+    elif config.temp_resolution == 15:
+        timestep_encoding = ['quarter']
+    else:
+        timestep_encoding = ["hour", "minute"]
+
+
+    datetime_encoders =  {
+                        "cyclic": {"future": timestep_encoding}, 
+                        "position": {"future": ["relative",]},
+                        "datetime_attribute": {"future": ["dayofweek", "week"]},
+                        'position': {'past': ['relative'], 'future': ['relative']},
+                }
+
+    datetime_encoders = datetime_encoders if config.datetime_encodings else None
+
+    config['datetime_encoders'] = datetime_encoders
+
+
+    config.timesteps_per_hour = int(60 / config.temp_resolution)
+    config.n_lags = config.lookback_in_hours * config.timesteps_per_hour
+    config.n_ahead = config.horizon_in_hours * config.timesteps_per_hour
+    config.eval_stride = int(np.sqrt(config.n_ahead)) # evaluation stride, how often to evaluate the model, in this case we evaluate every n_ahead steps
+
+    # Loading Data
+    df_train = pd.read_hdf(os.path.join(dir_path, f'{config.spatial_scale}.h5'), key=f'{config.location}/{config.temp_resolution}min/train_target')
+    df_val = pd.read_hdf(os.path.join(dir_path, f'{config.spatial_scale}.h5'), key=f'{config.location}/{config.temp_resolution}min/val_target')
+    df_test = pd.read_hdf(os.path.join(dir_path, f'{config.spatial_scale}.h5'),key=f'{config.location}/{config.temp_resolution}min/test_target')
+
+    df_cov_train = pd.read_hdf(os.path.join(dir_path, f'{config.spatial_scale}.h5'), key=f'{config.location}/{config.temp_resolution}min/train_cov')
+    df_cov_val = pd.read_hdf(os.path.join(dir_path, f'{config.spatial_scale}.h5'), key=f'{config.location}/{config.temp_resolution}min/val_cov')
+    df_cov_test = pd.read_hdf(os.path.join(dir_path,f'{config.spatial_scale}.h5'), key=f'{config.location}/{config.temp_resolution}min/test_cov')
+
+    # Heat wave covariatem, categorical variable
+    df_cov_train['heat_wave'] =  df_cov_train[df_cov_train.columns[0]] > df_cov_train[df_cov_train.columns[0]].quantile(0.95)
+    df_cov_val['heat_wave'] =  df_cov_val[df_cov_val.columns[0]] > df_cov_val[df_cov_val.columns[0]].quantile(0.95)
+    df_cov_test['heat_wave'] =  df_cov_test[df_cov_test.columns[0]] > df_cov_test[df_cov_test.columns[0]].quantile(0.95)
+
+    # into darts format
+    ts_train = darts.TimeSeries.from_dataframe(df_train, freq=str(config.temp_resolution) + 'min')
+    ts_train = extract_subseries(ts_train)
+    ts_val = darts.TimeSeries.from_dataframe(df_val, freq=str(config.temp_resolution) + 'min')
+    ts_val = extract_subseries(ts_val)
+    ts_test = darts.TimeSeries.from_dataframe(df_test, freq=str(config.temp_resolution) + 'min')
+    ts_test = extract_subseries(ts_test)
+
+    # Covariates
+    if config.weather:
+        ts_cov_train = darts.TimeSeries.from_dataframe(df_cov_train, freq=str(config.temp_resolution) + 'min')
+        ts_cov_val = darts.TimeSeries.from_dataframe(df_cov_val, freq=str(config.temp_resolution) + 'min')
+        ts_cov_test = darts.TimeSeries.from_dataframe(df_cov_test, freq=str(config.temp_resolution) + 'min')
+    else:
+        ts_cov_train = None
+        ts_cov_val = None
+        ts_cov_test = None
+
+    # Reviewing subseries to make sure they are long enough
+    ts_train, ts_cov_train = review_subseries(ts_train, config.n_lags + config.n_ahead, ts_cov_train)
+    ts_val, ts_cov_val = review_subseries(ts_val, config.n_lags + config.n_ahead, ts_cov_val)
+    ts_test, ts_cov_test = review_subseries(ts_test, config.n_lags +config.n_ahead, ts_cov_test)
+
+    # getting the index of the longest subseries, to be used for evaluation later
+    config.longest_ts_val_idx = get_longest_subseries_idx(ts_val)
+    config.longest_ts_test_idx = get_longest_subseries_idx(ts_test)
+
+    # Preprocessing Pipeline
+    pipeline = Pipeline( # missing values have been filled in the 'data_prep.ipynb'
+                    [
+                    BoxCox() if config.boxcox else None,
+                    Scaler(MinMaxScaler()),
+                    ]
+                    )
+    ts_train_piped = pipeline.fit_transform(ts_train)
+    ts_val_piped = pipeline.transform(ts_val)
+    ts_test_piped = pipeline.transform(ts_test)
+
+    # Weather Pipeline
+    if config.weather:
+        pipeline_weather = Pipeline([Scaler(RobustScaler())])
+        ts_train_weather_piped = pipeline_weather.fit_transform(ts_cov_train)
+        ts_val_weather_piped = pipeline_weather.transform(ts_cov_val)
+        ts_test_weather_piped = pipeline_weather.transform(ts_cov_test)
+    else:
+        ts_train_weather_piped = None
+        ts_val_weather_piped = None
+        ts_test_weather_piped = None
+
+    trg_train_inversed = pipeline.inverse_transform(ts_train_piped, partial=True) 
+    trg_val_inversed = pipeline.inverse_transform(ts_val_piped, partial=True)[config.longest_ts_val_idx] 
+    trg_test_inversed = pipeline.inverse_transform(ts_test_piped, partial=True)[config.longest_ts_test_idx]
+
+    return pipeline, ts_train_piped, ts_val_piped, ts_test_piped, ts_train_weather_piped, ts_val_weather_piped, ts_test_weather_piped, trg_train_inversed, trg_val_inversed, trg_test_inversed
 
 
 

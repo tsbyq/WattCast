@@ -25,68 +25,6 @@ from joblib import dump, load
 
 
 
-class Config:
-
-    '''
-    
-    Class to store config parameters, to circumvent the wandb.config when combining multiple models.
-    
-    '''
-
-    def __init__(self):
-        self.data = {}
-
-    def __getattr__(self, key):
-        if key in self.data:
-            return self.data[key]
-        else:
-            raise AttributeError(f"'Config' object has no attribute '{key}'")
-
-    def __setattr__(self, key, value):
-        if key == 'data':
-            # Allow normal assignment for the 'data' attribute
-            super().__setattr__(key, value)
-        else:
-            self.data[key] = value
-
-    def __delattr__(self, key):
-        if key in self.data:
-            del self.data[key]
-        else:
-            raise AttributeError(f"'Config' object has no attribute '{key}'")
-
-    def __len__(self):
-        return len(self.data)
-
-    def keys(self):
-        return self.data.keys()
-
-    def values(self):
-        return self.data.values()
-
-    def items(self):
-        return self.data.items()
-
-    def __getitem__(self, key):
-        return self.data[key]
-
-    def __setitem__(self, key, value):
-        self.data[key] = value
-
-    @classmethod
-    def from_dict(cls, data):
-        config = cls()
-        for key, value in data.items():
-            if isinstance(value, dict):
-                value = cls.from_dict(value)  # Recursively convert nested dictionaries
-            setattr(config, key, value)
-        return config
-
-
-
-
-
-
 def create_directory(directory_path):
 
     if not os.path.exists(directory_path):
