@@ -24,6 +24,7 @@ import h5py
 from joblib import dump, load
 
 
+model_dir = os.path.join(os.path.dirname(os.getcwd()), 'models')
 
 def create_directory(directory_path):
 
@@ -43,6 +44,39 @@ def save_models_to_disk(config, models_dict):
         create_directory(model_path)
         print(model_dir)
         models_dict[model].save(os.path.join(model_path, model+ ".joblib"))
+
+
+def load_trained_models(config, model_instances):
+
+    '''
+    
+    This function loads the trained models from the disk. If a model is not found, it is removed from the dictionary.
+
+    Parameters
+    
+    config: Config
+        Config object
+
+    model_instances: dict
+        Dictionary with the model instances
+
+    Returns
+    trained_models: list
+    model_instances: dict
+    
+    '''
+
+    trained_models = []
+    model_keys = list(model_instances.keys())  # Create a copy of the dictionary keys
+    for model_abbr in model_keys:
+        model = model_instances[model_abbr]
+        try:
+            model = model.load(os.path.join(model_dir, config.spatial_scale +'_' + config.location , model.__class__.__name__ +'.joblib'))
+            trained_models.append(model)
+            del model_instances[model_abbr]
+        except:
+            continue
+    return trained_models, model_instances
 
 
 def show_keys(dir_path):

@@ -96,12 +96,12 @@ def get_model_instances(tuned_models, config_per_model):
 
     
     config = Config().from_dict(config_per_model[tuned_models[0]][0])
-    model_instances = []
+    model_instances = {}
     for model in tuned_models:
         print('getting model instance for ' + model)
         config = Config().from_dict(config_per_model[model][0])
         print(config)
-        model_instances.append(get_model(config))
+        model_instances[model] = get_model(config)
 
     # since we did not optimize the hyperparameters for the linear regression model, we need to create a new instance
     print('getting model instance for linear regression')
@@ -112,7 +112,7 @@ def get_model_instances(tuned_models, config_per_model):
     add_encoders=config.datetime_encoders,
     random_state=42)
 
-    model_instances.append(lr_model) 
+    model_instances['lr'] = lr_model
     return model_instances
 
 
@@ -271,7 +271,6 @@ def get_model(config):
                     )
 
     return model
-
 
 
 
