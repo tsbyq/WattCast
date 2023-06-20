@@ -2,3 +2,5 @@ wandb/
 artifacts/
 models/
 data/raw_data
+imgs/figures
+media/plotly
