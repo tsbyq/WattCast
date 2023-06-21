@@ -8,7 +8,7 @@ import time
 
 import plotly.express as px
 from sklearn.preprocessing import MinMaxScaler, RobustScaler
-from utils import review_subseries, get_longest_subseries_idx, ts_list_concat, make_index_same
+from utils import review_subseries, get_longest_subseries_idx, ts_list_concat_new, make_index_same
 
 import darts
 from darts import TimeSeries
@@ -459,7 +459,7 @@ def predict_testset(model, ts, ts_covs, n_lags, n_ahead, eval_stride, pipeline):
     historics_gt = [ts.slice_intersect(historic) for historic in historics]
     score = np.array(rmse(historics_gt, historics)).mean()
 
-    ts_predictions = ts_list_concat(historics, eval_stride) # concatenating the batches into a single time series for plot 1, this keeps the n_ahead
+    ts_predictions = ts_list_concat_new(historics, eval_stride) # concatenating the batches into a single time series for plot 1, this keeps the n_ahead
     ts_predictions_inverse = pipeline.inverse_transform(ts_predictions) # inverse transform the predictions, we need the original values for the evaluation
     
     return ts_predictions_inverse.pd_series().to_frame('prediction'), score

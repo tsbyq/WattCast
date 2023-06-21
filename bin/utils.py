@@ -79,7 +79,7 @@ def load_trained_models(config, model_instances):
     return trained_models, model_instances
 
 
-def show_keys(dir_path):
+def get_hdf_keys(dir_path):
 
     '''
 
@@ -101,8 +101,7 @@ def show_keys(dir_path):
                     temporal_resolutions = list(f[location].keys())
                     temporal_resolutions_per_file[file_name] = temporal_resolutions
 
-    print(locations_per_file)
-    print(temporal_resolutions_per_file)
+    return locations_per_file, temporal_resolutions_per_file
 
 
 def load_from_model_artifact_checkpoint(model_class, base_path, checkpoint_path):
