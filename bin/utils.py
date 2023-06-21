@@ -5,6 +5,8 @@
 import os
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+import json
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, Callback
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 import datetime
@@ -638,3 +640,42 @@ def peak_error(preds, dtest):
 
 
 rmse_scorer = make_scorer(mean_squared_error, greater_is_better=False)
+
+
+
+# results analysis
+
+def choose_more_recent(file1, file2):
+    if file1.updatedAt > file2.updatedAt:
+        return file1
+    else:
+        return file2
+    
+def check_if_same_horizon_plot(file1, file2):
+    if file1._attrs['name'].split('_')[-2] == file2._attrs['name'].split('_')[-2]:
+        return True
+
+
+def get_latest_plotly_plots(files):
+
+    # get the most recent file for each horizon
+    zip_files = zip(files[::2], files[1::2])
+    files_to_plot = []
+    for file1, file2 in zip_files:
+        if check_if_same_horizon_plot(file1, file2):
+            files_to_plot.append(choose_more_recent(file1, file2))
+        else:
+            files_to_plot.append(file1)
+            files_to_plot.append(file2)
+    
+    return files_to_plot
+
+def download_plotly_plots(files_to_plot):
+    side_by_side_plots_dict = {}
+    for file in files_to_plot:
+        plot = file.download(replace=True)
+        data = json.load(plot)
+        plot_name = data['layout']['title']['text']
+        side_by_side_plots_dict[plot_name] = data
+        
+    return side_by_side_plots_dict
