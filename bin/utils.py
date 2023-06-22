@@ -679,3 +679,22 @@ def download_plotly_plots(files_to_plot):
         side_by_side_plots_dict[plot_name] = data
         
     return side_by_side_plots_dict
+
+
+def make_df_from_plot(plot):
+    data = plot['data']
+    df = pd.DataFrame()
+    for i in range(len(data)):
+        subdata = data[i]
+        try:
+            del subdata['line']
+        except:
+            pass
+        df_line = pd.DataFrame(subdata)
+        df_line.set_index('x', inplace=True)
+        df_line.index.name = 'Datetime'
+        col_name = data[i]['name']
+        df_line = df_line.rename(columns={'y': col_name})
+        df_line = df_line[[col_name]]
+        df = pd.concat([df, df_line], axis=1)
+    return df

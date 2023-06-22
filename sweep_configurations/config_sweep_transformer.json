@@ -1,0 +1,62 @@
+{
+    "name": "transformer_sweep",
+    "method": "bayes",
+    "metric": {
+        "name": "val_loss",
+        "goal": "minimize"
+    },
+    "parameters": {
+        "batch_size": {
+            "values": [
+                32,
+                64,
+                128,
+                256
+            ]
+        },
+        "hidden_dim": {
+            "values": [
+                128,
+                256,
+                512,
+                1024
+            ]
+        },
+        "n_rnn_layers": {
+            "values": [
+                1,
+                2,
+                3
+            ]
+        },
+        "dropout": {
+            "values": [
+                0.0,
+                0.1
+            ]
+        },
+        "lr": {
+            "values": [
+                0.0003,
+                0.001,
+                0.01,
+                0.1
+            ]
+        },
+        "num_attention_heads": {
+            "values": [
+                4,
+                6,
+                8
+            ]
+        },
+
+        "datetime_encodings": {
+            "values": [
+                    1,
+                    0
+            ]
+        }
+
+    }}
+
