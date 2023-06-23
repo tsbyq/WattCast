@@ -213,11 +213,29 @@ def ts_list_concat_new(ts_list, n_ahead):
     
     '''
     ts = ts_list[0][:n_ahead]
-    for i in range(n_ahead, len(ts_list), n_ahead):
+    for i in range(n_ahead, len(ts_list)-n_ahead, n_ahead):
         ts_1 = ts_list[i][ts.end_time():]
         timestamp_one_before = ts_1.start_time() - ts.freq
         ts = ts[:timestamp_one_before].append(ts_1[:n_ahead])
     return ts
+
+
+def ts_list_concat(ts_list, eval_stride):
+    '''
+    This function concatenates a list of time series into one time series.
+    The result is a time series that concatenates the subseries so that n_ahead is preserved.
+    
+    '''
+    ts = ts_list[0]
+    n_ahead = len(ts)
+    skip = n_ahead // eval_stride
+    for i in range(skip, len(ts_list)-skip, skip):
+        print(ts.end_time(), ts_list[i].start_time())
+        ts_1 = ts_list[i][ts.end_time():]
+        timestamp_one_before = ts_1.start_time() - ts.freq
+        ts = ts[:timestamp_one_before].append(ts_1)
+    return ts
+
 
 
 
