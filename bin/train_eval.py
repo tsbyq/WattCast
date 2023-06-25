@@ -18,11 +18,12 @@ from darts import TimeSeries
 from darts.utils.missing_values import extract_subseries
 from darts.dataprocessing.transformers.boxcox import BoxCox
 from darts.dataprocessing.transformers.scaler import Scaler
+from darts.dataprocessing.transformers.missing_values_filler import MissingValuesFiller
 from darts.dataprocessing import Pipeline
 from darts.metrics import rmse, r2_score, mae, smape, mape, max_peak_error , mean_n_peak_error
 from darts.models import (
                             BlockRNNModel, NBEATSModel, RandomForest, 
-                            LightGBMModel, XGBModel, LinearRegressionModel, TFTModel
+                            LightGBMModel, XGBModel, LinearRegressionModel, TFTModel, TransformerModel
                             )
 
 
@@ -274,7 +275,7 @@ def get_model(config):
                     )
         
 
-    elif model == 'transformer':
+    elif model == 'tft':
 
         try:
             transformer_kwargs = {
@@ -301,6 +302,36 @@ def get_model(config):
                         **transformer_kwargs
                     
                     )
+        
+    elif model == 'transformer':
+
+
+        try:
+            transformer_kwargs = {
+                'd_model': config.d_model,
+                'nhead': config.nhead,
+                'num_encoder_layers': config.num_encoder_layers,
+                'num_decoder_layers': config.num_decoder_layers,
+                'batch_size': config.batch_size,
+                'dropout': config.dropout,
+                'num_attention_heads': config.num_attention_heads,
+            }
+        except:
+            transformer_kwargs = {}
+
+        model = TransformerModel(
+                        input_chunk_length=config.n_lags,
+                        output_chunk_length=config.n_ahead,
+                        add_encoders=config.datetime_encoders,
+                        likelihood=config.liklihood,
+                        pl_trainer_kwargs=pl_trainer_kwargs,
+                        optimizer_kwargs=optimizer_kwargs,
+                        lr_scheduler_cls=ReduceLROnPlateau,
+                        lr_scheduler_kwargs=schedule_kwargs,
+                        random_state=42,
+                    )
+
+
 
 
 
@@ -408,7 +439,7 @@ def data_pipeline(config):
     # Preprocessing Pipeline
     pipeline = Pipeline( # missing values have been filled in the 'data_prep.ipynb'
                     [
-                    BoxCox() if config.boxcox else None,
+                    BoxCox() if config.boxcox else Scaler(MinMaxScaler()), # double scale in case boxcox is turned off
                     Scaler(MinMaxScaler()),
                     ]
                     )
@@ -555,7 +586,9 @@ def training(scale, location):
                     'lgbm',
                      'xgb',
                      'gru',
-                     'nbeats'
+                     'nbeats',
+                    #  'transformer'
+                    #  'tft'
                     ]
 
     resolution = 60

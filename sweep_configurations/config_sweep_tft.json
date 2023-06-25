@@ -1,35 +1,20 @@
 {
+    "name": "tft_sweep",
     "method": "bayes",
     "metric": {
         "name": "eval_loss",
         "goal": "minimize"
     },
     "parameters": {
-        "num_stacks": {
+        "batch_size": {
             "values": [
-                10,
-                20,
-                30,
-                40,
-                50
+                32,
+                64,
+                128,
+                256
             ]
         },
-        "num_blocks": {
-            "values": [
-                1,
-                2,
-                3
-            ]
-        },
-        "num_layers": {
-            "values": [
-                4,
-                6,
-                8,
-                10
-            ]
-        },
-        "layer_widths": {
+        "hidden_dim": {
             "values": [
                 128,
                 256,
@@ -37,11 +22,17 @@
                 1024
             ]
         },
+        "n_rnn_layers": {
+            "values": [
+                1,
+                2,
+                3
+            ]
+        },
         "dropout": {
             "values": [
-                0,
-                0.1,
-                0.2
+                0.0,
+                0.1
             ]
         },
         "lr": {
@@ -52,11 +43,20 @@
                 0.1
             ]
         },
+        "num_attention_heads": {
+            "values": [
+                4,
+                6,
+                8
+            ]
+        },
+
         "datetime_encodings": {
             "values": [
                     1,
                     0
             ]
         }
-    }
-}
+
+    }}
+

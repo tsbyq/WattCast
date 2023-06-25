@@ -2,7 +2,7 @@
     "name": "transformer_sweep",
     "method": "bayes",
     "metric": {
-        "name": "val_loss",
+        "name": "eval_loss",
         "goal": "minimize"
     },
     "parameters": {
@@ -14,19 +14,28 @@
                 256
             ]
         },
-        "hidden_dim": {
+        "d_model": {
             "values": [
+                32,
+                64,
                 128,
-                256,
-                512,
-                1024
+                256
             ]
         },
-        "n_rnn_layers": {
+        "num_encoder_layers": {
             "values": [
-                1,
                 2,
-                3
+                3,
+                4,
+                5
+            ]
+        },
+        "num_decoder_layers": {
+            "values": [
+                2,
+                3,
+                4,
+                5
             ]
         },
         "dropout": {
@@ -43,7 +52,7 @@
                 0.1
             ]
         },
-        "num_attention_heads": {
+        "nhead": {
             "values": [
                 4,
                 6,
