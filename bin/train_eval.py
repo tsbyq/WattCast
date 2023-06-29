@@ -339,7 +339,7 @@ def get_model(config):
 
 
 
-def get_best_run_config(project_name, metric, model, scale):
+def get_best_run_config(project_name, metric, model, scale, location):
 
     '''
     
@@ -357,7 +357,7 @@ def get_best_run_config(project_name, metric, model, scale):
             sweeps = project.sweeps()
 
     for sweep in sweeps:
-        if model in sweep.name and scale in sweep.name:
+        if model in sweep.name and scale in sweep.name and location in sweep.name:
             best_run = sweep.best_run(order=metric)
             config = best_run.config
             name = best_run.name
@@ -596,17 +596,13 @@ def training(scale, location):
 
     config_per_model = {}
     for model in tuned_models:
-        config, name = get_best_run_config('Wattcast_tuning', '+eval_loss', model, scale)
+        config, name = get_best_run_config('Wattcast_tuning', '+eval_loss', model, scale, location)
         config['horizon_in_hours'] = 48
         config['location'] = location 
         config_per_model[model] = config, name
 
-
-    wandb.finish()
-
-
     name_id = scale + "_" + location + "_" + str(resolution) + "min"
-    wandb.init(project="Wattcast2", name=name_id, id = name_id)
+    wandb.init(project="Wattcast", name=name_id, id = name_id)
 
 
     config = Config().from_dict(config_per_model[tuned_models[0]][0])
