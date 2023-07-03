@@ -718,7 +718,7 @@ def extract_forecasts_per_horizon(config, dict_result_season):
                 ts_predictions_per_model[model_name] = ts_predictions
                 historics_per_model_update[model_name] = historics
 
-            ts_predictions_per_model['24-Hour Persistence'] = gt.shift(config.timesteps_per_hour*24) # adding the 24-hour persistence model as a benchmark
+            ts_predictions_per_model['48-Hour Persistence'] = gt.shift(config.timesteps_per_hour*48) # adding the 48-hour persistence model as a benchmark
             dict_result_season_update[season] = historics_per_model_update, ts_predictions_per_model, gt
         dict_result_n_ahead[n_ahead] = dict_result_season_update
 

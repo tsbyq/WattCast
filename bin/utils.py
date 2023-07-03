@@ -28,6 +28,22 @@ from joblib import dump, load
 
 model_dir = os.path.join(os.path.dirname(os.getcwd()), 'models')
 
+
+
+def calculate_stats_and_plot_hist(df):
+
+    scaler = MinMaxScaler()
+    scaled = scaler.fit_transform(df)
+    df_scaled = pd.DataFrame(scaled, columns=df.columns, index=df.index)
+    std_ts = df_scaled.std()
+    std_ts_diff = df.diff().std()
+    df_scaled.hist(bins=100, layout=(1,df.shape[1]), figsize=(5*df.shape[1],5))
+
+    return std_ts, std_ts_diff
+
+
+
+
 def create_directory(directory_path):
 
     if not os.path.exists(directory_path):
