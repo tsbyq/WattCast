@@ -479,10 +479,14 @@ def split_train_val_test_datasets(df, train_start, train_end, val_start, val_end
     return train, val, test
 
 
-def remove_non_positive_values(df):
+def remove_non_positive_values(df, set_nan = False):
     'Removes all non-positive values from a dataframe, interpolates the missing values and sets zeros to a very small value (for boxcox))'
-    df[df<=0] = 1e-6
-    df = df.interpolate(method='linear', axis=0).ffill().bfill()
+    if set_nan:
+        df[df<=0] = np.nan
+    else:
+        df[df<=0] = 1e-6
+    
+    df = df.interpolate(method='linear', axis=0, limit=4)
     df.dropna(inplace=True)
     return df
 
