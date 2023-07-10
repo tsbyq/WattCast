@@ -6,3 +6,6 @@ imgs/figures
 media/plotly
 bin/artifacts
 bin/wandb
+wattcast_env
+__pycache__
+*cpython-310.pyc
