@@ -20,7 +20,10 @@ from darts.dataprocessing.transformers.boxcox import BoxCox
 from darts.dataprocessing.transformers.scaler import Scaler
 from darts.dataprocessing.transformers.missing_values_filler import MissingValuesFiller
 from darts.dataprocessing import Pipeline
-from darts.metrics import rmse, r2_score, mae, smape, mape, max_peak_error , mean_n_peak_error
+# from darts.metrics import rmse, r2_score, mae, smape, mape, max_peak_error , mean_n_peak_error
+from darts.metrics import rmse, r2_score, mae, smape, mape
+max_peak_error = rmse
+mean_n_peak_error = rmse
 from darts.models import (
                             BlockRNNModel, NBEATSModel, RandomForest, 
                             LightGBMModel, XGBModel, LinearRegressionModel, TFTModel, TransformerModel

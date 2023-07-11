@@ -9,3 +9,5 @@ bin/wandb
 wattcast_env
 __pycache__
 *cpython-310.pyc
+
+local_code
