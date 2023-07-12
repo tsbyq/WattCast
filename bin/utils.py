@@ -28,8 +28,6 @@ from joblib import dump, load
 
 model_dir = os.path.join(os.path.dirname(os.getcwd()), 'models')
 
-
-
 def calculate_stats_and_plot_hist(df):
 
     scaler = MinMaxScaler()

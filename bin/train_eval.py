@@ -37,7 +37,8 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 
 
-dir_path = os.path.join(os.path.dirname(os.getcwd()), 'data', 'clean_data')
+# dir_path = os.path.join(os.path.dirname(os.getcwd()), 'data', 'clean_data')
+dir_path = r'E:\GitHub\Forked_Repos\WattCast\data\clean_data'
 
 
 
@@ -468,8 +469,39 @@ def data_pipeline(config):
     return pipeline, ts_train_piped, ts_val_piped, ts_test_piped, ts_train_weather_piped, ts_val_weather_piped, ts_test_weather_piped, trg_train_inversed, trg_val_inversed, trg_test_inversed
 
 
+def data_pipeline_portland(config):
+    if config.temp_resolution == 60:
+        timestep_encoding = ["hour"] 
+    elif config.temp_resolution == 15:
+        timestep_encoding = ['quarter']
+    else:
+        timestep_encoding = ["hour", "minute"]
 
-def train_models(models:list, ts_train_piped, ts_train_weather_piped=None, ts_val_piped=None, ts_val_weather_piped=None, use_cov_as_past=False):
+
+    datetime_encoders =  {
+                        "cyclic": {"future": timestep_encoding}, 
+                        "position": {"future": ["relative",]},
+                        "datetime_attribute": {"future": ["dayofweek", "week"]},
+                        'position': {'past': ['relative'], 'future': ['relative']},
+                }
+
+    datetime_encoders = datetime_encoders if config.datetime_encodings else None
+
+    config['datetime_encoders'] = datetime_encoders
+    config.timesteps_per_hour = int(60 / config.temp_resolution)
+    config.n_lags = config.lookback_in_hours * config.timesteps_per_hour
+    config.n_ahead = config.horizon_in_hours * config.timesteps_per_hour
+    config.eval_stride = int(np.sqrt(config.n_ahead)) # evaluation stride, how often to evaluate the model, in this case we evaluate every n_ahead steps
+
+    df_data = pd.read_csv(config.data_path)
+
+
+def train_models(models:list, 
+                 ts_train_piped, 
+                 ts_train_weather_piped=None, 
+                 ts_val_piped=None, 
+                 ts_val_weather_piped=None, 
+                 use_cov_as_past=False):
     '''This function trains a list of models on the training data and validates them on the validation data if it is possible.
     
     
@@ -479,9 +511,9 @@ def train_models(models:list, ts_train_piped, ts_train_weather_piped=None, ts_va
     
     for model in models:
         start_time = time.time()
-        print(f'Training {model.__class__.__name__}')
+        print(f'Start training {model.__class__.__name__} at {start_time}')
         if model.supports_future_covariates:
-            try:
+            try: # ? why use weather data as future covariates
                 model.fit(ts_train_piped, future_covariates=ts_train_weather_piped, val_series=ts_val_piped, val_future_covariates=ts_val_weather_piped)
             except:
                 model.fit(ts_train_piped, future_covariates=ts_train_weather_piped)
