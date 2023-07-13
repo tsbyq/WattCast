@@ -1,4 +1,9 @@
-// {
+{
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.python"
+    },
+    "python.formatting.provider": "none"
+} // {
 //     "workbench.colorCustomizations": {
 //         "activityBar.activeBackground": "#fbed80",
 //         "activityBar.background": "#fbed80",
