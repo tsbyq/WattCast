@@ -1,5 +1,6 @@
 # %%
 import torch
+import os
 from torch.utils.data import Dataset, DataLoader
 from darts import TimeSeries
 
@@ -207,6 +208,7 @@ def prepare_config(config):
     config.n_ahead = config.horizon_in_hours * config.timesteps_per_hour
     # config.eval_stride = int(np.sqrt(config.n_ahead)) # evaluation stride, how often to evaluate the model, in this case we evaluate every n_ahead steps
     config.eval_stride = 1
+    # config.model_path = os.path.join(MODEL_DIR, config.model_name)
 
     return config
 
@@ -465,7 +467,7 @@ def eval_plot(dict_tss, historics, config):
         axs[i].set_ylim(0, )
         axs[i].axhline(0, color='black', lw=2)
     f.tight_layout()
-    f.suptitle(f'Validation Results for ', fontsize=16, y=1.02)
+    f.suptitle(f'Validation Results', fontsize=16, y=1.02)
     return f
 
 
@@ -517,6 +519,7 @@ def train_eval():
     model = init_model(config)
     model, runtime = train_loop(model, dict_tss, config)
     metric, fig_compare = eval_loop(model, dict_tss, config)
+    model.save(config.model_path)
 
     wandb.log({'test_score': metric})
     wandb.log({'runtime': runtime})
@@ -530,7 +533,7 @@ def train_eval():
 ########################################################################################
 if __name__ == '__main__':
     wandb.login()
-
+    MODEL_DIR = os.path.join(os.path.dirname(os.getcwd()), 'models')
     sweeps = 2
     models = [
         'rf',
@@ -548,7 +551,7 @@ if __name__ == '__main__':
             'temp_resolution': 60,
             'location': 'East Portland',
             'model': model,
-            'horizon_in_hours': 24,
+            'horizon_in_hours': 4,
             'lookback_in_hours': 24,
             'boxcox': True,
             'liklihood': None,
