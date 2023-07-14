@@ -57,6 +57,18 @@
                     1,
                     0
             ]
+        },
+        "use_past_cov": {
+            "values": [
+                1,
+                0
+            ]
+        },
+        "use_future_cov" : {
+            "values": [
+                1,
+                0
+            ]
         }
     }
 }
