@@ -19,7 +19,7 @@ from darts.metrics import mape, mse, rmse
 import time
 import json
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR
 
 from darts.models import (
     BlockRNNModel, NBEATSModel, RandomForest, 
@@ -28,6 +28,12 @@ from darts.models import (
 
 import wandb
 
+
+MODEL_DIR = os.path.join(os.path.dirname(os.getcwd()), 'models')
+if not os.path.exists(MODEL_DIR): 
+    os.makedirs(MODEL_DIR)
+    print(f"Created directory: {MODEL_DIR}")
+BEST_SCORE = 99999
 
 
 # %%
@@ -206,8 +212,8 @@ def prepare_config(config):
     config.timesteps_per_hour = int(60 / config.temp_resolution)
     config.n_lags = config.lookback_in_hours * config.timesteps_per_hour
     config.n_ahead = config.horizon_in_hours * config.timesteps_per_hour
-    # config.eval_stride = int(np.sqrt(config.n_ahead)) # evaluation stride, how often to evaluate the model, in this case we evaluate every n_ahead steps
-    config.eval_stride = 1
+    config.eval_stride = int(np.sqrt(config.n_ahead)) # evaluation stride, how often to evaluate the model, in this case we evaluate every n_ahead steps
+    # config.eval_stride = 1
     # config.model_path = os.path.join(MODEL_DIR, config.model_name)
 
     return config
@@ -230,14 +236,19 @@ def init_model(config):
         'max_epochs': 20,
         'accelerator': 'gpu',
         'devices': [0],
-        'callbacks': [EarlyStopping(monitor='val_loss', patience=5, mode='min')],
+        # 'callbacks': [EarlyStopping(monitor='val_loss', patience=5, mode='min')],
         #'logger': WandbLogger(log_model='all'),
     }
 
+    # schedule_kwargs = {
+    #     'patience': 2,
+    #     'factor': 0.5,
+    #     'min_lr': 1e-5,
+    #     'verbose': True
+    # }
     schedule_kwargs = {
-        'patience': 2,
-        'factor': 0.5,
-        'min_lr': 1e-5,
+        'T_max': 30,
+        'eta_min': 1e-5,
         'verbose': True
     }
 
@@ -251,15 +262,15 @@ def init_model(config):
                 'min_child_weight': config.min_child_weight,
                 'objective': config.objective,
                 'reg_lambda': config.reg_lambda,
-                'early_stopping_rounds': 10
+                'early_stopping_rounds': 5
             }
         except:
             xgb_kwargs ={}
 
         model = XGBModel(
             lags=config.n_lags,
-            lags_past_covariates=config.n_lags,
-            lags_future_covariates=[0],
+            lags_past_covariates=config.n_lags if config.use_past_cov else None,
+            lags_future_covariates=[0] if config.use_future_cov else None,
             add_encoders=config.datetime_encoders, 
             output_chunk_length=config.n_ahead, 
             likelihood=config.liklihood,
@@ -284,8 +295,8 @@ def init_model(config):
         
         model = LightGBMModel(
             lags=config.n_lags,
-            lags_past_covariates=config.n_lags,
-            lags_future_covariates=[0],
+            lags_past_covariates=config.n_lags if config.use_past_cov else None,
+            lags_future_covariates=[0] if config.use_future_cov else None,
             add_encoders=config.datetime_encoders,
             output_chunk_length=config.n_ahead,
             likelihood=config.liklihood,
@@ -303,8 +314,8 @@ def init_model(config):
 
         model = RandomForest(
             lags=config.n_lags,
-            lags_past_covariates=config.n_lags,
-            lags_future_covariates=[0],
+            lags_past_covariates=config.n_lags if config.use_past_cov else None,
+            lags_future_covariates=[0] if config.use_future_cov else None,
             add_encoders=config.datetime_encoders,
             output_chunk_length=config.n_ahead,
             random_state=42,
@@ -328,7 +339,8 @@ def init_model(config):
             likelihood=config.liklihood,
             pl_trainer_kwargs=pl_trainer_kwargs,
             optimizer_kwargs=optimizer_kwargs,
-            lr_scheduler_cls=ReduceLROnPlateau,
+            # lr_scheduler_cls=ReduceLROnPlateau,
+            lr_scheduler_cls=CosineAnnealingLR,
             lr_scheduler_kwargs=schedule_kwargs,
             random_state=42,
             **nbeats_kwargs
@@ -354,7 +366,8 @@ def init_model(config):
             likelihood=config.liklihood,
             pl_trainer_kwargs=pl_trainer_kwargs,
             optimizer_kwargs=optimizer_kwargs,
-            lr_scheduler_cls=ReduceLROnPlateau,
+            # lr_scheduler_cls=ReduceLROnPlateau,
+            lr_scheduler_cls=CosineAnnealingLR,
             lr_scheduler_kwargs=schedule_kwargs,
             random_state=42,
             **rnn_kwargs
@@ -382,7 +395,8 @@ def init_model(config):
             likelihood=config.liklihood,
             pl_trainer_kwargs=pl_trainer_kwargs,
             optimizer_kwargs=optimizer_kwargs,
-            lr_scheduler_cls=ReduceLROnPlateau,
+            # lr_scheduler_cls=ReduceLROnPlateau,
+            lr_scheduler_cls=CosineAnnealingLR,
             lr_scheduler_kwargs=schedule_kwargs,
             random_state=42,
             **transformer_kwargs
@@ -410,7 +424,8 @@ def init_model(config):
             likelihood=config.liklihood,
             pl_trainer_kwargs=pl_trainer_kwargs,
             optimizer_kwargs=optimizer_kwargs,
-            lr_scheduler_cls=ReduceLROnPlateau,
+            # lr_scheduler_cls=ReduceLROnPlateau,
+            lr_scheduler_cls=CosineAnnealingLR,
             lr_scheduler_kwargs=schedule_kwargs,
             random_state=42,
         )
@@ -421,26 +436,48 @@ def train_loop(model, dict_tss, config):
     print("Training model...")
     start = time.time()
 
-    config.use_past_cov = model.supports_past_covariates and config.use_past_cov
     print(f"==>> config.use_past_cov: {config.use_past_cov}")
-    config.use_future_cov = model.supports_future_covariates and config.use_future_cov
     print(f"==>> config.use_future_cov: {config.use_future_cov}")
+    use_past_cov = model.supports_past_covariates and bool(config.use_past_cov)
+    use_future_cov = model.supports_future_covariates and bool(config.use_future_cov)
+    print(f"==>> use_future_cov: {use_future_cov}")
+    print(f"==>> use_past_cov: {use_past_cov}")
 
     try:
         model.fit(
             series=dict_tss['train_tgt_timeseriess_piped'], 
-            past_covariates=dict_tss['train_cov_timeseriess_piped'] if config.use_past_cov else None, 
-            future_covariates=dict_tss['train_cov_timeseriess_piped'] if config.use_future_cov else None,
-            val_series=dict_tss['val_tgt_timeseriess_piped'], 
-            val_past_covariates=dict_tss['val_cov_timeseriess_piped'],
+            past_covariates=dict_tss['train_cov_timeseriess_piped'] if use_past_cov else None, 
+            future_covariates=dict_tss['train_cov_timeseriess_piped'] if use_future_cov else None,
+            val_series=dict_tss['train_tgt_timeseriess_piped'], 
+            val_past_covariates=dict_tss['train_cov_timeseriess_piped'],
+            verbose=True,
         )
     except:
-        model.fit(
-            series=dict_tss['train_tgt_timeseriess_piped'], 
-            past_covariates=dict_tss['train_cov_timeseriess_piped'] if config.use_past_cov else None, 
-            future_covariates=dict_tss['train_cov_timeseriess_piped'] if config.use_future_cov else None,
-        )
+        try:
+            model.fit(
+                series=dict_tss['train_tgt_timeseriess_piped'], 
+                past_covariates=dict_tss['train_cov_timeseriess_piped'] if use_past_cov else None, 
+                future_covariates=dict_tss['train_cov_timeseriess_piped'] if use_future_cov else None,
+                verbose=True,
+            )
+        except:
+            model.fit(
+                series=dict_tss['train_tgt_timeseriess_piped'], 
+                past_covariates=dict_tss['train_cov_timeseriess_piped'] if use_past_cov else None, 
+                future_covariates=dict_tss['train_cov_timeseriess_piped'] if use_future_cov else None,
+            ) 
 
+    # # Calculate validation loss using backtest
+    # backtest_results = model.backtest(
+    #     series=dict_tss['val_tgt_timeseriess_piped'], 
+    #     past_covariates=dict_tss['val_cov_timeseriess_piped'],
+    #     stride=config.eval_stride,
+    #     reduction=np.mean,
+    #     retrain=False,
+    #     verbose=False,
+    #     metric=rmse,  # Choose the desired metric
+    # )
+    # val_loss = np.mean(backtest_results)
 
     end = time.time()
     runtime = end - start
@@ -478,7 +515,7 @@ def eval_loop(model, dict_tss, config):
         past_covariates=dict_tss['val_cov_timeseriess_piped'] if config.use_past_cov else None,
         future_covariates= dict_tss['val_cov_timeseriess_piped'] if config.use_future_cov else None,
         # start=ts.get_index_at_point(n_lags),
-        verbose=True,
+        verbose=False,
         stride=config.eval_stride, 
         forecast_horizon=config.n_ahead, 
         retrain=False, 
@@ -504,7 +541,7 @@ def eval_loop(model, dict_tss, config):
 
 def train_eval():
 
-    wandb.init(project="East_Portland_tuning", entity="wattcast")
+    wandb.init(project=WB_PROJECT, entity="wattcast")
     # wandb.config.update(config_run)
     config = wandb.config
     print(f"==>> config: {config}")
@@ -519,7 +556,11 @@ def train_eval():
     model = init_model(config)
     model, runtime = train_loop(model, dict_tss, config)
     metric, fig_compare = eval_loop(model, dict_tss, config)
-    model.save(config.model_path)
+    # model.early_stopping_kwargs = {'patience': 5, 'min_delta': 0, 'threshold': val_loss}
+    # if metric < BEST_SCORE:
+    #     print(f"Current best model: {config.model}-{config.spatial_scale}_{config.location} achieved score={metric}")
+    #     model.save(os.path.join(MODEL_DIR, f"{config.model}-{config.spatial_scale}_{config.location}.pt"))
+    #     BEST_SCORE = metric
 
     wandb.log({'test_score': metric})
     wandb.log({'runtime': runtime})
@@ -533,15 +574,18 @@ def train_eval():
 ########################################################################################
 if __name__ == '__main__':
     wandb.login()
-    MODEL_DIR = os.path.join(os.path.dirname(os.getcwd()), 'models')
-    sweeps = 2
+
+    # WB_PROJECT = 'East_Portland_tuning'
+    WB_PROJECT = 'East_Portland_tuning_2'
+    
+    sweeps = 30
     models = [
         'rf',
-        # 'xgb', 
-        # 'gru', 
-        # 'lgbm',  
-        # 'nbeats',
-        #'tft'
+        'xgb', 
+        'gru', 
+        'lgbm',  
+        'nbeats',
+        # 'tft'
     ]
 
     for model in models:
@@ -552,21 +596,22 @@ if __name__ == '__main__':
             'location': 'East Portland',
             'model': model,
             'horizon_in_hours': 4,
-            'lookback_in_hours': 24,
+            'lookback_in_hours': 48,
             'boxcox': True,
             'liklihood': None,
             'weather': True,
             'holiday': True,
             'datetime_encodings': False,
-            'data_path': 'E:/GitHub/Forked_Repos/WattCast/data/clean_data/Portland.csv'
+            # 'data_path': 'E:/GitHub/Forked_Repos/WattCast/data/clean_data/Portland.csv',
+            'data_path': 'F:/Han/OE_HW_Portland_WC/WattCast/data/clean_data/Portland.csv'
         }
         
         with open(f'sweep_configurations/config_sweep_{model}.json', 'r') as fp:
             sweep_config = json.load(fp)                  
 
-        sweep_config['name'] = model + 'sweep' + config_run['spatial_scale'] + '_' + config_run['location'] + '_' + str(config_run['temp_resolution'])
+        sweep_config['name'] = model + 'sweep' + config_run['spatial_scale'] + '_' + config_run['location'] + '_' + str(config_run['temp_resolution']) + '_horizon=' + str(config_run['horizon_in_hours']) + '_lookback=' + str(config_run['lookback_in_hours'])
         print(f"==>> sweep_config: {sweep_config}")
-        sweep_id = wandb.sweep(sweep_config, project="East_Portland_tuning", entity="wattcast")
+        sweep_id = wandb.sweep(sweep_config, project=WB_PROJECT, entity="wattcast")
         wandb.agent(sweep_id, train_eval, count=sweeps)
 
 
